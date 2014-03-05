@@ -21,7 +21,7 @@ func Filter( play FilterFunc, input ... chan Event ) chan Event {
 
 //
 
-func Fork (input chan Event, count int) [] chan Event {
+func Split (input chan Event, count int) [] chan Event {
   var output [] chan Event
 
   for i := 0; i < count; i++ {
@@ -44,7 +44,7 @@ func Fork (input chan Event, count int) [] chan Event {
   return output
 }
 
-func Join (inputs ... chan Event) chan Event {
+func Merge (inputs ... chan Event) chan Event {
 
   work := func (output chan Event, inputs ... chan Event) {
     for {
@@ -57,3 +57,19 @@ func Join (inputs ... chan Event) chan Event {
   return Filter(work, inputs...)
 }
 
+func Join (inputs ... chan Event) chan Event {
+
+  output := make(chan Event)
+
+  work := func (input chan Event) {
+    for {
+        output <- <- input;
+    }
+  }
+
+  for _, input := range inputs {
+    go work(input)
+  }
+
+  return output
+}
