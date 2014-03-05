@@ -4,6 +4,7 @@ import (
   "time"
   "../stream"
   "container/list"
+  "container/heap"
 )
 
 type Event struct {
@@ -54,6 +55,53 @@ func Compose( sources ... stream.Operator ) stream.Operator {
   return stream.Filter(work, sources...)
 }
 
+func Play( tatum time.Duration, reference time.Time, sources... stream.Operator ) stream.Operator {
+
+  work := func (output chan stream.Event, inputs... chan stream.Event) {
+
+    q := &EventQueue{}
+    t := 0
+
+    for _, input := range inputs {
+      stream := new(EventQueueItem)
+      stream.source = input
+      stream.time = 0
+      heap.Push(q, stream)
+    }
+
+    for {
+
+      for q.Len() > 0 && (*q)[0].time <= t {
+        stream := heap.Pop(q).(*EventQueueItem)
+        token, ok := <-stream.source
+        if ok {
+          event := token.(Event)
+
+          output <- event
+
+          stream.time = stream.time + event.Duration
+          heap.Push(q, stream)
+        }
+      }
+
+      if q.Len() == 0 {
+        break
+      }
+
+      t = (*q)[0].time;
+
+      real_time := reference.Add(time.Duration(t) * tatum);
+      real_duration := real_time.Sub(time.Now());
+      real_time = <-time.After(real_duration);
+
+    }
+  }
+
+  return stream.Filter(work, sources...)
+}
+
+
+/*
 func Play( source stream.Operator, tatum time.Duration, reference time.Time ) stream.Operator {
 
   work := func (output chan stream.Event, inputs... chan stream.Event) {
@@ -74,3 +122,4 @@ func Play( source stream.Operator, tatum time.Duration, reference time.Time ) st
 
   return stream.Filter(work, source)
 }
+*/
