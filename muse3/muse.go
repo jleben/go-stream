@@ -27,8 +27,8 @@ func ListString( slice []string ) *list.List {
   return list;
 }
 
-func Iterate(list *list.List) chan stream.Event {
-  
+func Iterate(list *list.List) stream.Operator {
+
   work := func (output chan stream.Event) {
     for {
       for e := list.Front(); e != nil; e = e.Next() {
@@ -36,16 +36,14 @@ func Iterate(list *list.List) chan stream.Event {
       }
     }
   }
-  
+
   return stream.Source(work)
 }
 
-func Compose( input ... chan stream.Event) chan stream.Event {
-  output := make(chan stream.Event)
-
-  work := func() {
-    dur_in := input[0]
-    text_in := input[1]
+func Compose( sources ... stream.Operator ) stream.Operator {
+  work := func(output chan stream.Event, inputs... chan stream.Event) {
+    dur_in := inputs[0]
+    text_in := inputs[1]
     for {
       dur := (<-dur_in).(int)
       text := (<-text_in).(string)
@@ -53,18 +51,15 @@ func Compose( input ... chan stream.Event) chan stream.Event {
       output <- e
     }
   }
-
-  go work()
-
-  return output
+  return stream.Filter(work, sources...)
 }
 
-func Play( source chan stream.Event, tatum time.Duration, reference time.Time ) chan stream.Event {
-  output := make(chan stream.Event)
+func Play( source stream.Operator, tatum time.Duration, reference time.Time ) stream.Operator {
 
-  work := func () {
+  work := func (output chan stream.Event, inputs... chan stream.Event) {
+    input := inputs[0]
     t := 0
-    for token, ok := <-source; ok; token, ok = <-source {
+    for token, ok := <-input; ok; token, ok = <-input {
       event := token.(Event)
 
       output <- event;
@@ -77,7 +72,5 @@ func Play( source chan stream.Event, tatum time.Duration, reference time.Time ) 
     }
   }
 
-  go work()
-
-  return output
+  return stream.Filter(work, source)
 }

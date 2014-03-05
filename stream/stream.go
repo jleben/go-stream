@@ -2,46 +2,86 @@ package stream
 
 type Event interface {}
 
+type Operator interface {
+  Play () chan Event
+}
+
 //
 
 type SourceFunc func (output chan Event)
-type FilterFunc func (output chan Event, input ... chan Event )
 
-func Source( play SourceFunc ) chan Event {
-  output := make(chan Event)
-  go play(output)
-  return output
+type source struct {
+  work SourceFunc
 }
 
-func Filter( play FilterFunc, input ... chan Event ) chan Event {
+func Source ( work SourceFunc ) Operator {
+  s := new(source);
+  s.work = work;
+  return s
+}
+
+func (s *source) Play () chan Event {
   output := make(chan Event)
-  go play(output, input...)
+  go s.work(output)
   return output
 }
 
 //
 
-func Split (input chan Event, count int) [] chan Event {
-  var output [] chan Event
+type FilterFunc func (output chan Event, input ... chan Event )
+
+type filter struct {
+  work FilterFunc
+  sources [] Operator
+}
+
+func Filter ( work FilterFunc, sources ... Operator ) Operator {
+  f := new(filter)
+  f.work = work
+  f.sources = sources;
+  return f
+}
+
+func (f *filter) Play () chan Event {
+  output := make(chan Event)
+  var inputs [] chan Event
+  for _, source := range f.sources {
+    inputs = append(inputs, source.Play())
+  }
+  go f.work(output, inputs...)
+  return output
+}
+
+//
+
+/*
+type splitter_channel {
+  output chan Event
+}
+
+func Split (source Operator, count int) [] Operator {
+  var channels [] Operator
 
   for i := 0; i < count; i++ {
-    output = append(output, make(chan Event))
+    channels = append( channels, splitter_channel{ make(chan Event) } )
   }
 
-  work :=  func (input chan Event, output [] chan Event) {
+  input := source.Play();
+
+  work :=  func () {
     for event, ok := <- input; ok; event, ok = <- input {
-      for i := 0; i < len(output); i++ {
-        output[i] <- event
+      for _, channel := range channels {
+        channel.output <- event
       }
     }
-    for i := 0; i < len(output); i++ {
-      close(output[i])
+    for _, channel := range channels {
+        close(channel.output)
     }
   }
 
-  go work(input, output)
+  go work()
 
-  return output
+  return channels
 }
 
 func Merge (inputs ... chan Event) chan Event {
@@ -56,20 +96,21 @@ func Merge (inputs ... chan Event) chan Event {
 
   return Filter(work, inputs...)
 }
+*/
 
-func Join (inputs ... chan Event) chan Event {
-
-  output := make(chan Event)
-
-  work := func (input chan Event) {
+func Join (sources ... Operator) Operator {
+  forward := func(input chan Event, output chan Event) {
     for {
-        output <- <- input;
+      output <- <- input
     }
   }
 
-  for _, input := range inputs {
-    go work(input)
+  work := func(output chan Event, inputs ... chan Event) {
+    for _, input := range inputs {
+      go forward(input, output)
+    }
   }
 
-  return output
+  return Filter(work, sources...)
 }
+
