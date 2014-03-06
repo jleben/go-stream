@@ -3,7 +3,7 @@ package main
 import (
   "fmt"
   "time"
-  //"./stream"
+  "./stream"
   "./muse3"
 )
 
@@ -42,15 +42,25 @@ func main() {
   //
   */
 
-  x := muse.Repeat( muse.Iterate(1,2,3), 2 )
+  fmt.Println("dummy", stream.Join())
 
-  s := x.Play()
+
+  x :=
+    //muse.Repeat( muse.Iterate(1,2,3), 2 )
+    //muse.Iterate(1,2,3)
+    //stream.Join( muse.Repeat( muse.Iterate(1,2,3), 2),
+                 //muse.Iterate(10,11,12,13,14,15,16,17) )
+    muse.Series( 1,
+                 muse.Repeat( muse.Iterate(7,8,9), 2 ), 3 )
+  //y := muse.Iterate(10,11,12,13,14,15,16,17,18,19,20)
+
+  s := x.Play()//stream.Join(x,y).Play()
 
   for {
     e, ok := <-s;
     if (!ok) { break }
     fmt.Printf("%v: %v\n", time.Now().Sub(start_time).Seconds() * 1000, e);
-    time.Sleep(300 * time.Millisecond)
+    time.Sleep(100 * time.Millisecond)
   }
 
 }

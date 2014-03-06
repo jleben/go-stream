@@ -71,30 +71,37 @@ func Iterate(items... interface{}) stream.Operator {
   return stream.Source(work)
 }
 
-/*
+
 func Series(items... interface{}) stream.Operator {
-  var sources [] stream.Operator
+  var inputs [] interface {}
 
   for _, item := range items {
     switch item := item.(type) {
       case stream.Operator:
-        sources = append(sources, item)
+        inputs = append(inputs, item.Play())
       default:
-        sources = append(sources, Const(item))
+        inputs = append(inputs, item)
     }
   }
 
-  work := func (output stream.Stream, inputs... stream.Stream) {
-    for input := range inputs {
-      for value, ok := <-input; st; value, ok := <-input {
-        output <- value
+  work := func (output stream.Stream) {
+    for _, in := range inputs {
+      switch input := in.(type) {
+        case stream.Stream: {
+          for {
+            value, ok := <-input
+            if (ok) { output <- value } else { break }
+          }
+        }
+        default:
+          output <- input
       }
     }
   }
 
-  return stream.Filter(work, sources...)
+  return stream.Source(work)
 }
-*/
+
 
 func Compose( duration stream.Operator, parameters ... interface {} ) stream.Operator {
   if len(parameters) % 2 != 0 {
