@@ -92,8 +92,7 @@ func Play( tatum time.Duration, reference time.Time, sources... stream.Operator 
 
       real_time := reference.Add(time.Duration(t) * tatum);
       real_duration := real_time.Sub(time.Now());
-      real_time = <-time.After(real_duration);
-
+      time.Sleep(real_duration)
     }
   }
 
@@ -101,8 +100,7 @@ func Play( tatum time.Duration, reference time.Time, sources... stream.Operator 
 }
 
 
-/*
-func Play( source stream.Operator, tatum time.Duration, reference time.Time ) stream.Operator {
+func PlayOne( source stream.Operator, tatum time.Duration, reference time.Time ) stream.Operator {
 
   work := func (output chan stream.Event, inputs... chan stream.Event) {
     input := inputs[0]
@@ -116,10 +114,9 @@ func Play( source stream.Operator, tatum time.Duration, reference time.Time ) st
 
       real_time := reference.Add(time.Duration(t) * tatum);
       real_duration := real_time.Sub(time.Now());
-      real_time = <-time.After(real_duration);
+      time.Sleep(real_duration)
     }
   }
 
   return stream.Filter(work, source)
 }
-*/
