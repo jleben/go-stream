@@ -22,7 +22,11 @@ func Source ( work SourceFunc ) Operator {
 
 func (s *source) Play () chan Event {
   output := make(chan Event)
-  go s.work(output)
+  work := func() {
+    s.work(output)
+    close(output)
+  }
+  go work()
   return output
 }
 
@@ -48,7 +52,11 @@ func (f *filter) Play () chan Event {
   for _, source := range f.sources {
     inputs = append(inputs, source.Play())
   }
-  go f.work(output, inputs...)
+  work := func() {
+    f.work(output, inputs...)
+    close(output)
+  }
+  go work()
   return output
 }
 
