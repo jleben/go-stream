@@ -1,14 +1,17 @@
 package stream
 
-type Event interface {}
+type Item interface {}
+
+type Stream chan Item
 
 type Operator interface {
-  Play () chan Event
+  Play () Stream
 }
+
 
 //
 
-type SourceFunc func (output chan Event)
+type SourceFunc func (output Stream)
 
 type source struct {
   work SourceFunc
@@ -20,8 +23,8 @@ func Source ( work SourceFunc ) Operator {
   return s
 }
 
-func (s *source) Play () chan Event {
-  output := make(chan Event)
+func (s *source) Play () Stream {
+  output := make(Stream)
   work := func() {
     s.work(output)
     close(output)
@@ -32,7 +35,7 @@ func (s *source) Play () chan Event {
 
 //
 
-type FilterFunc func (output chan Event, input ... chan Event )
+type FilterFunc func (output Stream, input ... Stream )
 
 type filter struct {
   work FilterFunc
@@ -46,9 +49,9 @@ func Filter ( work FilterFunc, sources ... Operator ) Operator {
   return f
 }
 
-func (f *filter) Play () chan Event {
-  output := make(chan Event)
-  var inputs [] chan Event
+func (f *filter) Play () Stream {
+  output := make(Stream)
+  var inputs [] Stream
   for _, source := range f.sources {
     inputs = append(inputs, source.Play())
   }
@@ -64,14 +67,14 @@ func (f *filter) Play () chan Event {
 
 /*
 type splitter_channel {
-  output chan Event
+  output Stream
 }
 
 func Split (source Operator, count int) [] Operator {
   var channels [] Operator
 
   for i := 0; i < count; i++ {
-    channels = append( channels, splitter_channel{ make(chan Event) } )
+    channels = append( channels, splitter_channel{ make(Stream) } )
   }
 
   input := source.Play();
@@ -92,9 +95,9 @@ func Split (source Operator, count int) [] Operator {
   return channels
 }
 
-func Merge (inputs ... chan Event) chan Event {
+func Merge (inputs ... Stream) Stream {
 
-  work := func (output chan Event, inputs ... chan Event) {
+  work := func (output Stream, inputs ... Stream) {
     for {
       for _, input := range inputs {
         output <- <- input;
@@ -107,13 +110,13 @@ func Merge (inputs ... chan Event) chan Event {
 */
 
 func Join (sources ... Operator) Operator {
-  forward := func(input chan Event, output chan Event) {
+  forward := func(input Stream, output Stream) {
     for {
       output <- <- input
     }
   }
 
-  work := func(output chan Event, inputs ... chan Event) {
+  work := func(output Stream, inputs ... Stream) {
     for _, input := range inputs {
       go forward(input, output)
     }

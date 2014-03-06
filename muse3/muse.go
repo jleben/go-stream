@@ -32,7 +32,7 @@ func ListString( slice []string ) *list.List {
 
 func Const(value interface {}) stream.Operator {
 
-  work := func (output chan stream.Event) {
+  work := func (output stream.Stream) {
     for { output <- value }
   }
 
@@ -40,7 +40,7 @@ func Const(value interface {}) stream.Operator {
 }
 
 func Repeat(op stream.Operator, times int) stream.Operator {
-  work := func (output chan stream.Event) {
+  work := func (output stream.Stream) {
     if times >= 0 {
       for i := 0; i < times; i++ {
         input := op.Play()
@@ -63,7 +63,7 @@ func Repeat(op stream.Operator, times int) stream.Operator {
 }
 
 func Iterate(items... interface{}) stream.Operator {
-  work := func (output chan stream.Event) {
+  work := func (output stream.Stream) {
     for item := range items {
       output <- item
     }
@@ -84,7 +84,7 @@ func Series(items... interface{}) stream.Operator {
     }
   }
 
-  work := func (output chan stream.Event, inputs... chan stream.Event) {
+  work := func (output stream.Stream, inputs... stream.Stream) {
     for input := range inputs {
       for value, ok := <-input; st; value, ok := <-input {
         output <- value
@@ -108,7 +108,7 @@ func Compose( duration stream.Operator, parameters ... interface {} ) stream.Ope
     sources = append(sources, parameters[i+1].(stream.Operator))
   }
 
-  work := func(output chan stream.Event, inputs... chan stream.Event) {
+  work := func(output stream.Stream, inputs... stream.Stream) {
     duration := inputs[0]
     parameters := inputs[1:]
     for {
@@ -127,7 +127,7 @@ func Compose( duration stream.Operator, parameters ... interface {} ) stream.Ope
 
 func Play( tatum time.Duration, reference time.Time, sources... stream.Operator ) stream.Operator {
 
-  work := func (output chan stream.Event, inputs... chan stream.Event) {
+  work := func (output stream.Stream, inputs... stream.Stream) {
 
     q := &EventQueue{}
     t := 0
@@ -172,7 +172,7 @@ func Play( tatum time.Duration, reference time.Time, sources... stream.Operator 
 
 func PlayOne( source stream.Operator, tatum time.Duration, reference time.Time ) stream.Operator {
 
-  work := func (output chan stream.Event, inputs... chan stream.Event) {
+  work := func (output stream.Stream, inputs... stream.Stream) {
     input := inputs[0]
     t := 0
     for token, ok := <-input; ok; token, ok = <-input {

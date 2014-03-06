@@ -13,7 +13,7 @@ func pop (m map [string] interface {}, key string) interface{} {
   return value
 }
 
-func (server *Server) perform_note_start( event muse.Event, comm chan stream.Event ) {
+func (server *Server) perform_note_start( event muse.Event, comm stream.Stream ) {
   dur := float32(1)
   instrument := "default"
 
@@ -44,14 +44,14 @@ func (server *Server) perform_note_start( event muse.Event, comm chan stream.Eve
   //fmt.Printf("Note End: %v\n", node_id)
 }
 
-func (server *Server) perform_note_end( event muse.Event, stream chan stream.Event ) {
+func (server *Server) perform_note_end( event muse.Event, stream stream.Stream ) {
   node_id := event.Parameters["node"].(int32)
   server.SetNodeControls(node_id, "gate", float32(0))
 
   //fmt.Printf("Note Stop: %v\n", node_id)
 }
 
-func (server *Server) Play (stream chan stream.Event) {
+func (server *Server) Play (stream stream.Stream) {
   for {
     event := (<-stream).(muse.Event)
     event_type := event.Parameters["type"].(string)
