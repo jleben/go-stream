@@ -45,16 +45,16 @@ func Repeat(op stream.Operator, times int) stream.Operator {
       for i := 0; i < times; i++ {
         input := op.Play()
         for {
-          token, ok := <-input
-          if ok { output <- token } else { break }
+          item, ok := <-input
+          if ok { output <- item } else { break }
         }
       }
     } else {
       for {
         input := op.Play()
         for {
-          token, ok := <-input
-          if ok { output <- token } else { break }
+          item, ok := <-input
+          if ok { output <- item } else { break }
         }
       }
     }
@@ -143,9 +143,9 @@ func Play( tatum time.Duration, reference time.Time, sources... stream.Operator 
 
       for q.Len() > 0 && (*q)[0].time <= t {
         stream := heap.Pop(q).(*EventQueueItem)
-        token, ok := <-stream.source
+        item, ok := <-stream.source
         if ok {
-          event := token.(Event)
+          event := item.(Event)
 
           output <- event
 
@@ -175,8 +175,8 @@ func PlayOne( source stream.Operator, tatum time.Duration, reference time.Time )
   work := func (output stream.Stream, inputs... stream.Stream) {
     input := inputs[0]
     t := 0
-    for token, ok := <-input; ok; token, ok = <-input {
-      event := token.(Event)
+    for item, ok := <-input; ok; item, ok = <-input {
+      event := item.(Event)
 
       output <- event;
 
