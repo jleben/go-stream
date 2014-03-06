@@ -64,7 +64,7 @@ func Repeat(op stream.Operator, times int) stream.Operator {
 
 func Iterate(items... interface{}) stream.Operator {
   work := func (output stream.Stream) {
-    for item := range items {
+    for _, item := range items {
       output <- item
     }
   }
