@@ -2,7 +2,7 @@ package stream
 
 type Item interface {}
 
-type Stream chan Item
+type Stream (chan Item)
 
 type Operator interface {
   Play () Stream
@@ -45,7 +45,7 @@ type filter struct {
 func Filter ( work FilterFunc, sources ... Operator ) Operator {
   f := new(filter)
   f.work = work
-  f.sources = sources;
+  f.sources = sources
   return f
 }
 
@@ -110,16 +110,34 @@ func Merge (inputs ... Stream) Stream {
 */
 
 func Join (sources ... Operator) Operator {
+  source_done := make(chan bool)
+  all_done := make(chan bool)
+
   forward := func(input Stream, output Stream) {
     for {
-      output <- <- input
+      item, ok := <- input
+      if ok {
+        output <- item
+      } else {
+        source_done <- true
+        break
+      }
     }
+  }
+
+  cleanup := func(output Stream) {
+    for i := 0; i < len(sources); i++ {
+      <- source_done
+    }
+    all_done <- true
   }
 
   work := func(output Stream, inputs ... Stream) {
     for _, input := range inputs {
       go forward(input, output)
     }
+    go cleanup(output)
+    <- all_done
   }
 
   return Filter(work, sources...)
