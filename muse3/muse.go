@@ -9,7 +9,7 @@ import (
 
 type Event struct {
   Duration int
-  Text string
+  Parameters map[string]interface{}
 }
 
 func ListInt( slice []int ) *list.List {
@@ -28,6 +28,17 @@ func ListString( slice []string ) *list.List {
   return list;
 }
 
+//
+
+func Const(value interface {}) stream.Operator {
+
+  work := func (output chan stream.Event) {
+    for { output <- value }
+  }
+
+  return stream.Source(work)
+}
+
 func Iterate(list *list.List) stream.Operator {
 
   work := func (output chan stream.Event) {
@@ -41,17 +52,32 @@ func Iterate(list *list.List) stream.Operator {
   return stream.Source(work)
 }
 
-func Compose( sources ... stream.Operator ) stream.Operator {
+func Compose( duration stream.Operator, parameters ... interface {} ) stream.Operator {
+  if len(parameters) % 2 != 0 {
+    return nil
+  }
+  var keys [] string
+  var sources [] stream.Operator
+  sources = append(sources, duration)
+  for i := 0; i < len(parameters); i = i + 2 {
+    keys = append(keys, parameters[i].(string))
+    sources = append(sources, parameters[i+1].(stream.Operator))
+  }
+
   work := func(output chan stream.Event, inputs... chan stream.Event) {
-    dur_in := inputs[0]
-    text_in := inputs[1]
+    duration := inputs[0]
+    parameters := inputs[1:]
     for {
-      dur := (<-dur_in).(int)
-      text := (<-text_in).(string)
-      e := Event {dur, text}
+      e := Event{}
+      e.Parameters = make( map[string]interface{} )
+      e.Duration = (<-duration).(int)
+      for i, key := range keys {
+        e.Parameters[key] = <-parameters[i]
+      }
       output <- e
     }
   }
+
   return stream.Filter(work, sources...)
 }
 

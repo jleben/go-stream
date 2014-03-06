@@ -15,17 +15,17 @@ func main() {
     //f := stream.Fork(x, 2)
     //z := stream.Join( f[0], f[1] )
 
-    events := muse.Compose(dur_stream, text_stream)
+    events := muse.Compose(dur_stream, "text", text_stream)
 
     return events
   }
 
   var voices [] stream.Operator;
   for i := 0; i < 10; i++ {
-    voices = append(voices, play( []int{1}, []string{"a"} ) );
+    voices = append(voices, play( []int{1,3}, []string{"a"} ) );
   }
 
-  tatum := 100 * time.Millisecond
+  tatum := 200 * time.Millisecond
   start_time := time.Now();
 
   // Version 1:
