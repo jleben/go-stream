@@ -39,18 +39,62 @@ func Const(value interface {}) stream.Operator {
   return stream.Source(work)
 }
 
-func Iterate(list *list.List) stream.Operator {
-
+func Repeat(op stream.Operator, times int) stream.Operator {
   work := func (output chan stream.Event) {
-    for {
-      for e := list.Front(); e != nil; e = e.Next() {
-        output <- e.Value
+    if times >= 0 {
+      for i := 0; i < times; i++ {
+        input := op.Play()
+        for {
+          token, ok := <-input
+          if ok { output <- token } else { break }
+        }
+      }
+    } else {
+      for {
+        input := op.Play()
+        for {
+          token, ok := <-input
+          if ok { output <- token } else { break }
+        }
+      }
+    }
+  }
+  return stream.Source(work)
+}
+
+func Iterate(items... interface{}) stream.Operator {
+  work := func (output chan stream.Event) {
+    for item := range items {
+      output <- item
+    }
+  }
+  return stream.Source(work)
+}
+
+/*
+func Series(items... interface{}) stream.Operator {
+  var sources [] stream.Operator
+
+  for _, item := range items {
+    switch item := item.(type) {
+      case stream.Operator:
+        sources = append(sources, item)
+      default:
+        sources = append(sources, Const(item))
+    }
+  }
+
+  work := func (output chan stream.Event, inputs... chan stream.Event) {
+    for input := range inputs {
+      for value, ok := <-input; st; value, ok := <-input {
+        output <- value
       }
     }
   }
 
-  return stream.Source(work)
+  return stream.Filter(work, sources...)
 }
+*/
 
 func Compose( duration stream.Operator, parameters ... interface {} ) stream.Operator {
   if len(parameters) % 2 != 0 {
