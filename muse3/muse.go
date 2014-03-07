@@ -3,7 +3,7 @@ package muse
 import (
   "time"
   "../stream"
-  "container/heap"
+  //"container/heap"
 )
 
 type Event struct {
@@ -66,13 +66,13 @@ func Conduct( tatum time.Duration, reference time.Time, sources... stream.Operat
       stream := new(EventQueueItem)
       stream.source = input
       stream.time = 0
-      heap.Push(q, stream)
+      q.Push(stream)
     }
 
     for {
 
       for q.Len() > 0 && q.Top().time <= t {
-        stream := heap.Pop(q).(*EventQueueItem)
+        stream := q.Pop().(*EventQueueItem)
         item, ok := <-stream.source
         if ok {
           event := item.(Event)
@@ -80,7 +80,7 @@ func Conduct( tatum time.Duration, reference time.Time, sources... stream.Operat
           output <- event
 
           stream.time = stream.time + event.Duration
-          heap.Push(q, stream)
+          q.Push(stream)
         }
       }
 

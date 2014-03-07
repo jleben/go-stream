@@ -2,37 +2,56 @@
 
 package priority_queue
 
-// An Item is something we manage in a priority queue.
+import "container/heap"
+
 type Item interface {
   Less(Item) bool
 }
 
-// A PriorityQueue implements heap.Interface and holds Items.
-type Queue []Item
+type storage []Item
 
-func (q Queue) Len() int { return len(q) }
+func (this storage) Len() int { return len(this) }
 
-func (q Queue) Less(i, j int) bool {
-  // We want Pop to give us the highest, not lowest, priority so we use greater than here.
-  return q[i].Less(q[j])
+func (this storage) Less(i, j int) bool {
+  return this[i].Less(this[j])
 }
 
-func (q Queue) Swap(i, j int) {
-  q[i], q[j] = q[j], q[i]
+func (this storage) Swap(i, j int) {
+  this[i], this[j] = this[j], this[i]
 }
 
-func (q *Queue) Push(item interface{}) {
-  *q = append(*q, item.(Item))
+func (this *storage) Push(item interface{}) {
+  *this = append(*this, item.(Item))
 }
 
-func (q *Queue) Pop() interface{} {
-  old := *q
+func (this *storage) Pop() interface{} {
+  old := *this
   n := len(old)
   item := old[n-1]
-  *q = old[0 : n-1]
+  *this = old[0 : n-1]
   return item
 }
 
-func (q *Queue) At(index int) Item {
-  return (*q)[index]
+//
+
+type Queue storage
+
+func (this *Queue) Push(item Item) {
+  heap.Push((*storage)(this), item)
+}
+
+func (this *Queue) Pop() Item {
+  return heap.Pop((*storage)(this)).(Item)
+}
+
+func (this *Queue) At(index int) Item {
+  return (*this)[index]
+}
+
+func (this *Queue) Top() Item {
+  return (*this)[0]
+}
+
+func (this *Queue) Len() int {
+  return (storage)(*this).Len()
 }
