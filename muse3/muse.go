@@ -71,7 +71,7 @@ func Conduct( tatum time.Duration, reference time.Time, sources... stream.Operat
 
     for {
 
-      for q.Len() > 0 && (*q)[0].time <= t {
+      for q.Len() > 0 && q.Top().time <= t {
         stream := heap.Pop(q).(*EventQueueItem)
         item, ok := <-stream.source
         if ok {
@@ -88,7 +88,7 @@ func Conduct( tatum time.Duration, reference time.Time, sources... stream.Operat
         break
       }
 
-      t = (*q)[0].time;
+      t = q.Top().time;
 
       real_time := reference.Add(time.Duration(t) * tatum);
       real_duration := real_time.Sub(time.Now());
