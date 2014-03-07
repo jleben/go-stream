@@ -77,18 +77,20 @@ func Const(value interface {}) Operator {
 //
 
 func Series(items... interface{}) Operator {
-  var inputs [] interface {}
-
-  for _, item := range items {
-    switch item := item.(type) {
-      case Operator:
-        inputs = append(inputs, item.Stream())
-      default:
-        inputs = append(inputs, item)
-    }
-  }
 
   work := func (output Stream) {
+
+    var inputs [] interface {}
+
+    for _, item := range items {
+      switch item := item.(type) {
+        case Operator:
+          inputs = append(inputs, item.Stream())
+        default:
+          inputs = append(inputs, item)
+      }
+    }
+
     for _, in := range inputs {
       switch input := in.(type) {
         case Stream: {
