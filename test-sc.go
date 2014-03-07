@@ -4,9 +4,11 @@ import (
   "fmt"
   "time"
   "math/rand"
-  "./muse3"
-  "./supercollider"
+  "math"
+  //"./muse3"
+  "./schedule"
   "./stream"
+  "./supercollider"
 )
 
 func report_error( e error ) {
@@ -26,13 +28,20 @@ func main() {
     fmt.Println("Success!")
   }
 
+  tatum := 50 * time.Millisecond
+  start_time := time.Now()
+
+  _ = tatum
+  _ = start_time
+
   //server.DumpOSC(true)
   //server.DumpTree(0)
 
   //time.Sleep(300 * time.Millisecond)
 
-  generator := func ( base_pitch float32 ) func(chan stream.Event) {
-    f := func (output chan stream.Event) {
+  /*
+  generator := func ( base_pitch float32 ) func(chan stream.Item) {
+    f := func (output chan stream.Item) {
         e := muse.Event {}
         e.Duration = 10
         e.Parameters = map[string]interface{} {
@@ -52,15 +61,54 @@ func main() {
         }
     }
     return f
+  }*/
+
+
+  rand_pitch := func (output stream.Stream) {
+    for {
+      output <- int(rand.Float32() * 12)
+    }
   }
 
-  tatum := 10 * time.Millisecond
-  start_time := time.Now()
-  music := muse.Play(tatum, start_time,
+  var _ = rand_pitch
+
+  pitch_to_freq := func(output stream.Stream, inputs... stream.Stream) {
+      pitch_in := inputs[0]
+      for {
+        pitch, ok := (<-pitch_in).(int)
+        if !ok { break }
+        freq := 440 * math.Pow(2, float64(pitch) / 12)
+        output <- float32(freq)
+      }
+  }
+
+  //pitch := stream.Series( stream.Series(1,2,3), stream.Series(6,8,4) )
+  pitch := stream.Source(rand_pitch)
+
+  score1 := supercollider.Compose( stream.Repeat(stream.Series(20,5,10), -1),
+                                  "duration", stream.Const(float32(0.01)),
+                                  "freq", stream.Filter(pitch_to_freq, pitch) )
+
+  score2 := supercollider.Compose( stream.Repeat(stream.Series(20,20,30), -1),
+                                  "duration", stream.Const(float32(0.01)),
+                                  "freq", stream.Filter(pitch_to_freq, pitch) )
+  //music := muse.Conduct(tatum, start_time, stream.Repeat(score, 2))
+
+
+  /*
+  music := muse.Conduct(tatum, start_time,
                      stream.Source(generator(600)),
                      stream.Source(generator(6000)) ).Play()
+  */
 
-  server.Play(music)
+  schedule := new(schedule.Schedule)
+  schedule.SetTime( time.Now() )
+
+  conductor := supercollider.NewConductor( server, schedule )
+  conductor.Play(score1, score2)
+
+  schedule.Run()
+
 
 /*
   fmt.Println("Bing")

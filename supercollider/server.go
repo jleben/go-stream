@@ -53,6 +53,14 @@ func (server *Server) SendMessage (msg *osc.Message) error {
   return err
 }
 
+func (server *Server) SendBundle (bundle *osc.Bundle) error {
+  if server.connection == nil {
+    return sc_error { "Can not send bundle: not connected." }
+  }
+  _, err := bundle.WriteTo(server.connection)
+  return err
+}
+
 func (server *Server) DumpOSC (on bool) error {
   msg := &osc.Message{Address: "/dumpOSC"}
   var arg int32
@@ -93,6 +101,27 @@ func (server *Server) NewSynth (name string, params ... interface {}) (id int32,
   return synth_id, e
 }
 
+func (server *Server) NewSynthMsg (name string, params ... interface {}) (*osc.Message, int32) {
+  if len(params) % 2 != 0 {
+    return nil, -1
+  }
+
+  msg := &osc.Message{Address: "/s_new"}
+
+  synth_id := int32(server.synth_ids)
+  target_id := int32(0)
+  add_action := int32(0)
+
+  msg.Args = append(msg.Args, name, synth_id, add_action, target_id)
+  if len(params) > 0 {
+    msg.Args = append(msg.Args, params...)
+  }
+
+  server.synth_ids++;
+
+  return msg, synth_id
+}
+
 func (server *Server) SetNodeControls (node_id int32, params ... interface {}) error {
   if len(params) % 2 != 0 {
     return sc_error { "Can not set node controls: odd number of parameters." }
@@ -104,6 +133,18 @@ func (server *Server) SetNodeControls (node_id int32, params ... interface {}) e
 
   e := server.SendMessage(msg)
   return e
+}
+
+func (server *Server) SetNodeControlsMsg (node_id int32, params ... interface {}) *osc.Message {
+  if len(params) % 2 != 0 {
+    return nil
+  }
+
+  msg := &osc.Message{Address: "/n_set"}
+  msg.Args = append(msg.Args, node_id)
+  msg.Args = append(msg.Args, params...)
+
+  return msg
 }
 
 func (server *Server) FreeNode (id int32) error {
