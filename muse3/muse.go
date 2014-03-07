@@ -29,12 +29,25 @@ func Compose( duration stream.Operator, parameters ... interface {} ) stream.Ope
     duration := inputs[0]
     parameters := inputs[1:]
     for {
+      var ok bool
+
       e := Event{}
       e.Parameters = make( map[string]interface{} )
-      e.Duration = (<-duration).(int)
+
+      var d stream.Item
+      d, ok = <-duration
+      if !ok { break }
+      e.Duration = d.(int)
+
       for i, key := range keys {
-        e.Parameters[key] = <-parameters[i]
+        var p stream.Item
+        p, ok = <-parameters[i]
+        if !ok { break }
+        e.Parameters[key] = p
       }
+
+      if !ok { break }
+
       output <- e
     }
   }
@@ -42,7 +55,7 @@ func Compose( duration stream.Operator, parameters ... interface {} ) stream.Ope
   return stream.Filter(work, sources...)
 }
 
-func Play( tatum time.Duration, reference time.Time, sources... stream.Operator ) stream.Operator {
+func Conduct( tatum time.Duration, reference time.Time, sources... stream.Operator ) stream.Operator {
 
   work := func (output stream.Stream, inputs... stream.Stream) {
 
@@ -87,7 +100,7 @@ func Play( tatum time.Duration, reference time.Time, sources... stream.Operator 
 }
 
 
-func PlayOne( source stream.Operator, tatum time.Duration, reference time.Time ) stream.Operator {
+func ConductOne( source stream.Operator, tatum time.Duration, reference time.Time ) stream.Operator {
 
   work := func (output stream.Stream, inputs... stream.Stream) {
     input := inputs[0]
