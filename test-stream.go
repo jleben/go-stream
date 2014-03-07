@@ -50,8 +50,8 @@ func main() {
     //muse.Iterate(1,2,3)
     //stream.Join( muse.Repeat( muse.Iterate(1,2,3), 2),
                  //muse.Iterate(10,11,12,13,14,15,16,17) )
-    muse.Series( 1,
-                 muse.Repeat( muse.Iterate(7,8,9), 2 ), 3 )
+    stream.Series( 1,
+                 stream.Repeat( stream.Series(7,8,9), 2 ), 3 )
   //y := muse.Iterate(10,11,12,13,14,15,16,17,18,19,20)
 
   s := x.Play()//stream.Join(x,y).Play()

@@ -65,6 +65,72 @@ func (f *filter) Play () Stream {
 
 //
 
+func Const(value interface {}) Operator {
+
+  work := func (output Stream) {
+    for { output <- value }
+  }
+
+  return Source(work)
+}
+
+//
+
+func Series(items... interface{}) Operator {
+  var inputs [] interface {}
+
+  for _, item := range items {
+    switch item := item.(type) {
+      case Operator:
+        inputs = append(inputs, item.Play())
+      default:
+        inputs = append(inputs, item)
+    }
+  }
+
+  work := func (output Stream) {
+    for _, in := range inputs {
+      switch input := in.(type) {
+        case Stream: {
+          for {
+            value, ok := <-input
+            if (ok) { output <- value } else { break }
+          }
+        }
+        default:
+          output <- input
+      }
+    }
+  }
+
+  return Source(work)
+}
+
+//
+
+func Repeat(op Operator, times int) Operator {
+  work := func (output Stream) {
+    if times >= 0 {
+      for i := 0; i < times; i++ {
+        input := op.Play()
+        for {
+          item, ok := <-input
+          if ok { output <- item } else { break }
+        }
+      }
+    } else {
+      for {
+        input := op.Play()
+        for {
+          item, ok := <-input
+          if ok { output <- item } else { break }
+        }
+      }
+    }
+  }
+  return Source(work)
+}
+
 /*
 type splitter_channel {
   output Stream
@@ -142,4 +208,3 @@ func Join (sources ... Operator) Operator {
 
   return Filter(work, sources...)
 }
-
