@@ -4,7 +4,7 @@ import (
   "fmt"
   "time"
   "./stream"
-  "./muse3"
+  //"./muse3"
 )
 
 func main() {
@@ -51,10 +51,10 @@ func main() {
     //stream.Join( muse.Repeat( muse.Iterate(1,2,3), 2),
                  //muse.Iterate(10,11,12,13,14,15,16,17) )
     stream.Series( 1,
-                 stream.Repeat( stream.Series(7,8,9), 2 ), 3 )
+                 stream.Repeat( stream.Series("a",999,"z"), 2 ), 3 )
   //y := muse.Iterate(10,11,12,13,14,15,16,17,18,19,20)
 
-  s := x.Play()//stream.Join(x,y).Play()
+  s := x.Stream()//stream.Join(x,y).Play()
 
   for {
     e, ok := <-s;

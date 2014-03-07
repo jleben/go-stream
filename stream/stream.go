@@ -5,7 +5,7 @@ type Item interface {}
 type Stream (chan Item)
 
 type Operator interface {
-  Play () Stream
+  Stream () Stream
 }
 
 
@@ -23,7 +23,7 @@ func Source ( work SourceFunc ) Operator {
   return s
 }
 
-func (s *source) Play () Stream {
+func (s *source) Stream () Stream {
   output := make(Stream)
   work := func() {
     s.work(output)
@@ -49,11 +49,11 @@ func Filter ( work FilterFunc, sources ... Operator ) Operator {
   return f
 }
 
-func (f *filter) Play () Stream {
+func (f *filter) Stream () Stream {
   output := make(Stream)
   var inputs [] Stream
   for _, source := range f.sources {
-    inputs = append(inputs, source.Play())
+    inputs = append(inputs, source.Stream())
   }
   work := func() {
     f.work(output, inputs...)
@@ -82,7 +82,7 @@ func Series(items... interface{}) Operator {
   for _, item := range items {
     switch item := item.(type) {
       case Operator:
-        inputs = append(inputs, item.Play())
+        inputs = append(inputs, item.Stream())
       default:
         inputs = append(inputs, item)
     }
@@ -112,7 +112,7 @@ func Repeat(op Operator, times int) Operator {
   work := func (output Stream) {
     if times >= 0 {
       for i := 0; i < times; i++ {
-        input := op.Play()
+        input := op.Stream()
         for {
           item, ok := <-input
           if ok { output <- item } else { break }
@@ -120,7 +120,7 @@ func Repeat(op Operator, times int) Operator {
       }
     } else {
       for {
-        input := op.Play()
+        input := op.Stream()
         for {
           item, ok := <-input
           if ok { output <- item } else { break }
@@ -143,7 +143,7 @@ func Split (source Operator, count int) [] Operator {
     channels = append( channels, splitter_channel{ make(Stream) } )
   }
 
-  input := source.Play();
+  input := source.Stream();
 
   work :=  func () {
     for event, ok := <- input; ok; event, ok = <- input {
