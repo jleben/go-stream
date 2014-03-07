@@ -13,6 +13,7 @@ type Task interface {
 
 type Scheduler interface {
   Schedule ( task Task, delay time.Duration )
+  Time () time.Time
 }
 
 // Scheduling implementation
@@ -43,12 +44,16 @@ func (q *pQueue) Pop () *pQueueItem {
 }
 
 type Schedule struct {
-  Time time.Time
+  time time.Time
   queue pQueue
 }
 
+func (this *Schedule) Time () time.Time { return this.time }
+
+func (this *Schedule) SetTime( t time.Time ) { this.time = t }
+
 func (this *Schedule) Schedule (task Task, delay time.Duration) {
-  time := this.Time.Add(delay)
+  time := this.time.Add(delay)
   //fmt.Printf("Scheduling %v at %v\n", task, time)
   this.queue.Push( &pQueueItem{time, task} )
 }
@@ -61,7 +66,7 @@ func (this *Schedule) Run () {
     for this.queue.Len() > 0 && !this.queue.Top().time.After(now) {
       //fmt.Println("Will perform:", this.queue.Top())
       item := this.queue.Pop()
-      this.Time = item.time
+      this.time = item.time
       item.task.Perform(this)
     }
 
