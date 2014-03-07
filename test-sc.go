@@ -5,7 +5,6 @@ import (
   "time"
   "math/rand"
   "math"
-  //"./muse3"
   "./schedule"
   "./stream"
   "./supercollider"

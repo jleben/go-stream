@@ -5,13 +5,11 @@ import (
   "fmt"
   "../osc"
   "../stream"
-  "../muse3"
   "../priority_queue"
   "../schedule"
 )
 
 var _ stream.Stream
-var _ muse.Event
 
 // Musical stream interface
 
