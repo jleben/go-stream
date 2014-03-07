@@ -7,13 +7,18 @@ import (
   "../muse3"
 )
 
-func pop (m map [string] interface {}, key string) interface{} {
-  value := m[key]
-  delete(m, key)
-  return value
+type note_end_event struct {
+  time time.Time
+  id int32
 }
 
-func (server *Server) perform_note_start( event muse.Event, comm stream.Stream ) {
+func (server *Server) await_note_end (request note_end_event, response chan note_end_event) {
+  duration := request.time.Sub( time.Now() )
+  time.Sleep(duration)
+  response <- request
+}
+
+func (server *Server) perform_note_start( event muse.Event, response chan note_end_event ) bool {
   dur := float32(1)
   instrument := "default"
 
@@ -27,37 +32,52 @@ func (server *Server) perform_note_start( event muse.Event, comm stream.Stream )
     }
   }
 
-  node_id, err := server.NewSynth(instrument, params...)
+  id, err := server.NewSynth(instrument, params...)
   if err == nil {
-    cleanup := func () {
-      time.Sleep(time.Duration(dur * 1000 * 1000) * time.Microsecond)
-      e := muse.Event{}
-      e.Parameters = map[string]interface{} {
-        "type": "note-end",
-        "node": node_id,
-      }
-      comm <- e
-    }
-    go cleanup()
+    real_duration := time.Duration(dur * 1000 * 1000) * time.Microsecond
+    end_time := time.Now().Add(real_duration)
+    go server.await_note_end( note_end_event{end_time, id}, response )
+    return true
+  } else {
+    return false
   }
 
   //fmt.Printf("Note End: %v\n", node_id)
 }
 
-func (server *Server) perform_note_end( event muse.Event, stream stream.Stream ) {
-  node_id := event.Parameters["node"].(int32)
-  server.SetNodeControls(node_id, "gate", float32(0))
-
+func (server *Server) perform_note_end( id int32 ) {
+  server.SetNodeControls(id, "gate", float32(0))
   //fmt.Printf("Note Stop: %v\n", node_id)
 }
 
-func (server *Server) Play (stream stream.Stream) {
+
+func (server *Server) Play (music stream.Stream) {
+  note_count := 0
+  note_end := make(chan note_end_event)
   for {
-    event := (<-stream).(muse.Event)
-    event_type := event.Parameters["type"].(string)
-    switch event_type {
-      case "note-start": server.perform_note_start(event, stream);
-      case "note-end": server.perform_note_end(event, stream);
+    var ok bool
+    var item stream.Item
+
+    select {
+
+      case item, ok = <-music:
+
+        if ok {
+          event := item.(muse.Event)
+          if (server.perform_note_start(event, note_end)) {
+            note_count++
+          }
+        } else {
+          music = nil
+        }
+
+      case e := <-note_end:
+
+        server.perform_note_end(e.id)
+        note_count--
+
     }
+
+    if music == nil && note_count == 0 { break }
   }
 }
