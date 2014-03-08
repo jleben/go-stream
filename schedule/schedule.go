@@ -48,6 +48,10 @@ type Schedule struct {
   queue pQueue
 }
 
+func NewScheduleStarting (start_time time.Time) *Schedule {
+  return &Schedule{time: start_time}
+}
+
 func (this *Schedule) Time () time.Time { return this.time }
 
 func (this *Schedule) SetTime( t time.Time ) { this.time = t }
