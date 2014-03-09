@@ -2,6 +2,8 @@ package stream
 
 import ("fmt")
 
+// Interface...
+
 type Item interface {}
 
 type Status int
@@ -11,14 +13,6 @@ const (
   Closed
   Interrupted
 )
-
-// NOTE:
-
-// A Pull will never be Interrupted.
-// It is assumed that Pull never depends on downstream.
-
-// A Push will never be Closed.
-// Only writers ever close channels.
 
 type Writer interface {
   Push (Item) Status
@@ -30,14 +24,31 @@ type Reader interface {
   Close ()
 }
 
+// NOTE:
+
+// A Push will never return Closed.
+// Only writers ever close channels.
+
+// A Pull will never return Interrupted.
+// It is assumed that Pull never depends on downstream, and hence would never
+// block forever: it would either succeed or end because the upstream has ended
+// and closed the channel.
+
 type Operator interface {
+  // An Operator represents a definition of a stream,
+  // whereas Stream() instantiates a concrete stream of values
+  // based on the definition.
+  // This supports operator re-use:
+  // streams can be instantiated from them multiple times
   Stream() Reader
 }
 
-//
+// Implementation...
 
 type Stream struct {
+  // Transfer stream output downstream:
   data chan Item
+  // Request from downstream for this stream to end:
   finish chan struct {}
 }
 
@@ -76,7 +87,7 @@ func (s *StreamReader) Close () {
   close(s.finish)
 }
 
-//
+// Generic source
 
 type SourceFunc func ( Writer )
 
@@ -103,7 +114,7 @@ func Source ( work SourceFunc ) Operator {
   return & SourceOp { work }
 }
 
-//
+// Generic filter
 
 type FilterFunc func ( Writer, ...Reader )
 
