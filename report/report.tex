@@ -1,0 +1,54 @@
+\documentclass {article}
+\usepackage{graphicx}
+\usepackage{subfigure}
+\usepackage{listings}
+\usepackage{courier}
+\usepackage[top=2.5cm, bottom=2.5cm, left=2.5cm, right=2.5cm]{geometry}
+
+\begin {document}
+\title{UVic CSC 564 Concurrency\\Assignment 2 Report\\Go Language Evaluation}
+\author{Jakob Leben}
+\date{March 2014}
+\maketitle
+
+\lstset{basicstyle=\small\fontfamily{pcr}\selectfont}
+
+\section{Introduction}
+
+The goal of this assignment was to get familiar and experiment with the Go programming language, and evaluate its advantages and drawbacks. I thought the best way to achieve this was to try and develop code that can serve a real purpose and actually be put to good use beyond the scope of this assignment.
+
+This report includes the following sections:
+
+\begin{description}
+
+\item[\ref{sec:project}: Project Description] A programming project implemented in Go is described. Reasons are given why this particular project is relevant for evaluation of Go. Main project requirements are defined, challenges faced by any implementation are described, and solutions in Go language are explained.
+
+\item[\ref{sec:language}: Go Language Evaluation] The language is evaluated based on the experience gained through implementation of the above described project. Comparison is drawn to other languages.
+
+\item[\ref{sec:runtime}: Go Runtime Evaluation] The code is put into use and performance is measured in various ways. Reflection is provided on how the performance characteristics are a necessary consequence of the essential language design, what could potentially be done differently and what tradeoffs between performance qualities and qualities of the language are at play.
+
+\end{description}
+
+\section{Project Description}
+\label{sec:project}
+
+\subsection{Overview of Go and Motivation}
+
+In support of the choice of particular programming project, let me first provide a quick overview of the most prominent characteristics of the Go language. The most distinguishing features of Go are arguably "goroutines" and "channels".
+
+Goroutines are an embodiment of the concept of co-routines found in other languages: each goroutine is a chunk of sequential code, but different goroutines can run concurrently. They are first-class concepts in the Go language and are thus distinguished from the operating system concept of threads. Goroutines may indeed run in parallel on different threads, or they may run on a single thread in an interleaved fashion where only one at a time ever progresses but they take turns in doing so. The assumption is that the way goroutines are actually executed is irrelevant for the task of program implementation, and the Go runtime together with the operating system should ideally ensure the best possible execution of any given set of goroutines.
+
+Channels are facilities for orderly and deterministic communication of otherwise independently running goroutines. In the essence, they correspond to channels as described by Hoare in Communicating Sequential Processes (CSP) \ref{csp}. A channel allows a goroutine to send information to another goroutine. It also allows for goroutine synchronization: the sending goroutine will wait until the sent information is received, and the receiving one will wait until the expected information is sent. Moreover, Go's channels feature several extensions of the CSP channels. They can optionally be buffered with a limited buffer size, so sending and receiving will only block if the channel is full or empty, respectively. Unlike channels in CSP which are defined implicitly by addressing send and receive operations to named processes, channels in Go are themselves named objects that can be passed as information just like any other object. Hence it is possible to have channels of channels, which allows for complex communication patterns.
+
+However, channels do allow for some degree of indeterminism. Specifically, there is a \lstinline|select| statement which groups several send and receive operations, waits until any of them can complete, and proceeds to execute one such operation. If more than one operation could complete, one is randomly chosen. Moreover, multiple goroutines can write to and read from the same channel concurrently. In that case, individual send and receive operations are paired, but it is undefined which send will be paired with which receive.
+
+\subsection{Project: Music and Streams}
+
+
+\section{Go Language Evaluation}
+\label{sec:language}
+
+\section{Go Runtime Evaluation}
+\label{sec:runtime}
+
+\end {document}
