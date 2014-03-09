@@ -63,32 +63,35 @@ func main() {
   }*/
 
 
-  rand_pitch := func (output stream.Stream) {
+  rand_pitch := func (output stream.Writer) {
     for {
-      output <- int(rand.Float32() * 12)
+      status := output.Push( int(rand.Float32() * 12) )
+      if status != stream.Ok { break }
     }
   }
 
   var _ = rand_pitch
 
-  pitch_to_freq := func(output stream.Stream, inputs... stream.Stream) {
+  pitch_to_freq := func(output stream.Writer, inputs... stream.Reader) {
       pitch_in := inputs[0]
       for {
-        pitch, ok := (<-pitch_in).(int)
-        if !ok { break }
-        freq := 440 * math.Pow(2, float64(pitch) / 12)
-        output <- float32(freq)
+        pitch, status := pitch_in.Pull()
+        if status != stream.Ok { break }
+        freq := 440 * math.Pow(2, float64(pitch.(int)) / 12)
+        status = output.Push(float32(freq))
+        if status != stream.Ok { break }
       }
   }
 
   //pitch := stream.Series( stream.Series(1,2,3), stream.Series(6,8,4) )
   pitch := stream.Source(rand_pitch)
 
-  score1 := supercollider.Compose( stream.Repeat(stream.Series(20,5,10), -1),
+  score1 := supercollider.Compose( stream.Repeat(stream.Series(20,20,20), -1),
                                   "duration", stream.Const(float32(0.01)),
                                   "freq", stream.Filter(pitch_to_freq, pitch) )
 
-  score2 := supercollider.Compose( stream.Repeat(stream.Series(20,20,30), -1),
+
+  score2 := supercollider.Compose( stream.Repeat(stream.Series(40,60,40), -1),
                                   "duration", stream.Const(float32(0.01)),
                                   "freq", stream.Filter(pitch_to_freq, pitch) )
   //music := muse.Conduct(tatum, start_time, stream.Repeat(score, 2))

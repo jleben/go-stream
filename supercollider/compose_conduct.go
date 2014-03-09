@@ -20,67 +20,6 @@ type Event struct {
   Parameters EventParameters
 }
 
-type Stream chan Event
-
-//
-
-/*
-type StreamPlayer struct {
-  server *Server
-  stream Stream
-}
-
-type NoteEnd struct {
-  server *Server
-  id int32
-}
-
-func (this Stream) Perform ( scheduler schedule.Scheduler ) {
-  event, ok := <-this
-  if (!ok) { return }
-  fmt.Println("Event:", event)
-  scheduler.Schedule(this, event.Delay)
-}
-
-func (this *StreamPlayer) Perform ( scheduler schedule.Scheduler ) {
-  event, ok := <-this.stream
-  if (!ok) { return }
-
-  fmt.Println("Note start:", event)
-
-  dur := float32(1)
-  instrument := "default"
-
-  var params [] interface {}
-  for key, value := range event.Parameters {
-    switch key {
-      //case "type":;
-      case "duration":
-        dur = value.(float32)
-        params = append(params, key, value)
-      case "instrument":
-        instrument = value.(string)
-      default:
-        params = append(params, key, value)
-    }
-  }
-
-  id, err := this.server.NewSynth(instrument, params...)
-  if err == nil {
-    note_end_delay := time.Duration(dur * 1000 * 1000) * time.Microsecond
-    note_end := &NoteEnd {this.server, id}
-    scheduler.Schedule(note_end, note_end_delay)
-  }
-
-  scheduler.Schedule(this, event.Delay)
-}
-
-func (this *NoteEnd) Perform ( sched schedule.Scheduler ) {
-  fmt.Println("Node end")
-  this.server.SetNodeControls(this.id, "gate", float32(0))
-}
-*/
-
 // Queue items
 
 type queue_item struct {
@@ -93,7 +32,7 @@ type NoteEnd struct {
 }
 
 type NoteProvider struct {
-  stream Stream
+  stream stream.Reader
 }
 
 func (this *queue_item) Less (other priority_queue.Item) bool {
@@ -127,12 +66,12 @@ func (this *Conductor) Schedule (item *queue_item, after time.Duration) {
 }
 */
 
-func (this *Conductor) Play( streams ... Stream ) {
+func (this *Conductor) Play( operators ... stream.Operator ) {
 
   if !this.scheduled { this.time = this.scheduler.Time() }
 
-  for _, stream := range streams {
-    this.queue.Push( &queue_item { this.time, NoteProvider{stream} } )
+  for _, op := range operators {
+    this.queue.Push( &queue_item { this.time, NoteProvider{op.Stream()} } )
   }
 
   if !this.scheduled { this.scheduler.Schedule( this, 0 ) }
@@ -153,8 +92,9 @@ func (this *Conductor) Perform( scheduler schedule.Scheduler ) {
 
     switch task := item.task.(type) {
       case NoteProvider:
-        event, ok := <-task.stream
-        if (!ok) { break }
+        data, status := task.stream.Pull()
+        if status != stream.Ok { break }
+        event := data.(Event)
         fmt.Println("Conductor: Note start!")
         item.time = this.time.Add( event.Delay )
         this.queue.Push( item )
@@ -216,50 +156,74 @@ func (this *Conductor) note_end_message (id int32) *osc.Message {
   return this.server.SetNodeControlsMsg(id, "gate", float32(0))
 }
 
-func Compose( duration_op stream.Operator, parameters ... interface {} ) Stream {
+//
+
+type Composer struct {
+  Duration stream.Operator
+  Parameters (map [string] stream.Operator)
+}
+
+func Compose( duration stream.Operator, parameters ... interface {} ) *Composer {
   if len(parameters) % 2 != 0 {
     return nil
   }
 
-  duration := duration_op.Stream()
+  composer := & Composer { duration, make(map [string] stream.Operator) }
 
-  var keys [] string
-  var values [] stream.Stream
   for i := 0; i < len(parameters); i = i + 2 {
-    keys = append(keys, parameters[i].(string))
-    values = append(values, parameters[i+1].(stream.Operator).Stream())
+    key := parameters[i].(string)
+    value := parameters[i+1].(stream.Operator)
+    composer.Parameters[key] = value
   }
 
-  output := make(Stream)
+  return composer
+}
+
+func (this *Composer) Stream() stream.Reader {
+  output := stream.NewStream()
+  output_writer := (*stream.StreamWriter)(output)
+  output_reader := (*stream.StreamReader)(output)
+
+  duration := this.Duration.Stream()
+
+  parameters := make(map [string] stream.Reader)
+  for key, value := range this.Parameters {
+    parameters[key] = value.Stream()
+  }
 
   work := func() {
-    for {
-      var ok bool
 
-      e := Event{}
-      e.Parameters = make(EventParameters)
+    InputProcessing:
+    for {
+      var status stream.Status
+
+      event := Event{}
+      event.Parameters = make(EventParameters)
 
       var d stream.Item
-      d, ok = <-duration
-      if !ok { break }
-      e.Delay = time.Duration(d.(int)) * 10 * time.Millisecond
+      d, status = duration.Pull()
+      if status != stream.Ok { break }
+      event.Delay = time.Duration(d.(int)) * 10 * time.Millisecond
 
-      for i, key := range keys {
+      for key, value := range parameters {
         var p stream.Item
-        p, ok = <-values[i]
-        if !ok { break }
-        e.Parameters[key] = p
+        p, status = value.Pull()
+        if status != stream.Ok { break InputProcessing }
+        event.Parameters[key] = p
       }
 
-      if !ok { break }
-
-      output <- e
+      status = output_writer.Push(event)
+      if status == stream.Interrupted { break }
     }
 
-    close(output)
+    duration.Close()
+    for _, input := range parameters { input.Close() }
+    output_writer.Close()
+
+    fmt.Println("Composer finished.")
   }
 
   go work()
 
-  return output
+  return output_reader
 }
