@@ -20,12 +20,92 @@ type Event struct {
   Parameters EventParameters
 }
 
-// Queue items
+// Compose...
+
+type Composer struct {
+  Duration stream.Operator
+  Parameters (map [string] stream.Operator)
+}
+
+func Compose( duration stream.Operator, parameters ... interface {} ) *Composer {
+  if len(parameters) % 2 != 0 {
+    return nil
+  }
+
+  composer := & Composer { duration, make(map [string] stream.Operator) }
+
+  for i := 0; i < len(parameters); i = i + 2 {
+    key := parameters[i].(string)
+    value := parameters[i+1].(stream.Operator)
+    composer.Parameters[key] = value
+  }
+
+  return composer
+}
+
+func (this *Composer) Stream() stream.Reader {
+  output := stream.NewStream()
+  output_writer := (*stream.StreamWriter)(output)
+  output_reader := (*stream.StreamReader)(output)
+
+  duration := this.Duration.Stream()
+
+  parameters := make(map [string] stream.Reader)
+  for key, value := range this.Parameters {
+    parameters[key] = value.Stream()
+  }
+
+  work := func() {
+
+    InputProcessing:
+    for {
+      var status stream.Status
+
+      event := Event{}
+      event.Parameters = make(EventParameters)
+
+      var d stream.Item
+      d, status = duration.Pull()
+      if status != stream.Ok { break }
+      event.Delay = time.Duration(d.(int)) * 10 * time.Millisecond
+
+      for key, value := range parameters {
+        var p stream.Item
+        p, status = value.Pull()
+        if status != stream.Ok { break InputProcessing }
+        event.Parameters[key] = p
+      }
+
+      status = output_writer.Push(event)
+      if status == stream.Interrupted { break }
+    }
+
+    duration.Close()
+    for _, input := range parameters { input.Close() }
+    output_writer.Close()
+
+    fmt.Println("Composer finished.")
+  }
+
+  go work()
+
+  return output_reader
+}
+
+// Conduct...
+
+// Conductor queue items
 
 type queue_item struct {
   time time.Time
   task interface {}
 }
+
+func (this *queue_item) Less (other priority_queue.Item) bool {
+  return this.time.Before( other.(*queue_item).time )
+}
+
+// Conductor queued tasks
 
 type NoteEnd struct {
   id int32
@@ -35,11 +115,7 @@ type NoteProvider struct {
   stream stream.Reader
 }
 
-func (this *queue_item) Less (other priority_queue.Item) bool {
-  return this.time.Before( other.(*queue_item).time )
-}
-
-//
+// Conductor
 
 type Conductor struct {
   server *Server
@@ -154,76 +230,4 @@ func (this *Conductor) note_start_message ( event Event ) (*osc.Message, int32) 
 
 func (this *Conductor) note_end_message (id int32) *osc.Message {
   return this.server.SetNodeControlsMsg(id, "gate", float32(0))
-}
-
-//
-
-type Composer struct {
-  Duration stream.Operator
-  Parameters (map [string] stream.Operator)
-}
-
-func Compose( duration stream.Operator, parameters ... interface {} ) *Composer {
-  if len(parameters) % 2 != 0 {
-    return nil
-  }
-
-  composer := & Composer { duration, make(map [string] stream.Operator) }
-
-  for i := 0; i < len(parameters); i = i + 2 {
-    key := parameters[i].(string)
-    value := parameters[i+1].(stream.Operator)
-    composer.Parameters[key] = value
-  }
-
-  return composer
-}
-
-func (this *Composer) Stream() stream.Reader {
-  output := stream.NewStream()
-  output_writer := (*stream.StreamWriter)(output)
-  output_reader := (*stream.StreamReader)(output)
-
-  duration := this.Duration.Stream()
-
-  parameters := make(map [string] stream.Reader)
-  for key, value := range this.Parameters {
-    parameters[key] = value.Stream()
-  }
-
-  work := func() {
-
-    InputProcessing:
-    for {
-      var status stream.Status
-
-      event := Event{}
-      event.Parameters = make(EventParameters)
-
-      var d stream.Item
-      d, status = duration.Pull()
-      if status != stream.Ok { break }
-      event.Delay = time.Duration(d.(int)) * 10 * time.Millisecond
-
-      for key, value := range parameters {
-        var p stream.Item
-        p, status = value.Pull()
-        if status != stream.Ok { break InputProcessing }
-        event.Parameters[key] = p
-      }
-
-      status = output_writer.Push(event)
-      if status == stream.Interrupted { break }
-    }
-
-    duration.Close()
-    for _, input := range parameters { input.Close() }
-    output_writer.Close()
-
-    fmt.Println("Composer finished.")
-  }
-
-  go work()
-
-  return output_reader
 }
