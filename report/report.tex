@@ -187,7 +187,9 @@ There is a good reason for the distinction between the operator as the stream pr
 
 The stream instantiation is represented by the instantiation of a goroutine which operates on Reader interfaces to consume input, processes the input and operates on a Writer interface to produce output. The implementations of the Stream method for SourceOp do and FilterOp do little more than instantiating a goroutine which in turn calls their concrete processing function. In addition, FilterOp obtains input streams by calling Stream() on upstream operators, and both SourceOp and FilterOp create an instance of the Stream struct to return as their output stream. These streams are passed as Writer and Reader interfaces to the concrete processing functions. Moreover, both FilterOp and SourceOp goroutines call Close on all input and output streams after the processing functions end.
 
-Using a well-defined interface for cooperation between stream producers and consumers, goroutine management appeared to be a no-brainer and emerged very naturally and intuitively from the interface. I would conclude that Go's facilities for concurrent programming foster good code design and allow intuition about the operation of concurrent programs that helps writing error-free code.
+\subsection{Conclusions}
+
+Using a well-defined interface for cooperation between stream producers and consumers, goroutine management and communication appeared to be a no-brainer and emerged very naturally and intuitively from the interface. I would conclude that Go's facilities for concurrent programming foster good code design and allow intuition about the operation of concurrent programs that helps writing error-free code.
 
 \section{Go Runtime Evaluation}
 \label{sec:runtime}
