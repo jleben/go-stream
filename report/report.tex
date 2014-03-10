@@ -115,7 +115,7 @@ type Operator interface {
 I will only provide a basic explanation of the interface here and details will be explained later. The Item is the smallest discrete unit of information transferred in any stream. It is an empty interface, so any other type can be used in its place. There is a set of constants defining the result status of stream production and consumption operations. The Writer represents the producing end of a stream. Its Push method sends the Item argument downstream. The Reader represents the consuming end of the stream. Its Pull method removes and returns an Item from the stream. The Close methods notify the other end that no writing or reading will be performed anymore by this end, and this is reflected in the Status returned by the Push or Pull methods on the other end. The Operator represents a concrete definition of stream processing. It's duty is to provide a method Stream which instantiates a concrete stream of values and returns the Reader interface to it. The \emph{output} of upstream operators is thus accesed by downstream operators via the Operator interface. However, it is left to concrete implementations of the Operator to define whether they require or accept any upstream Operators and how they are to be provided.
 
 
-\subsection{Goroutines and Channels}
+\subsection{Channels}
 
 One of the main project goals was to allow the framework user to define operators as goroutines. The Stream method of the Operator should thus run a goroutine which should then be able to provide stream data Item by Item via the Reader interface. The obvious way to exchange data between goroutines while they are running are Go's channels.
 
@@ -147,6 +147,47 @@ func (s *StreamReader) Close () { ... }
 In conclusion, to provide a simple interface that ensures correct operation, the ability to use the channel send/receive operator (\lstinline|<-|) at the user level was lost. Nevertheless, Go allowed for succesful abstraction of the more complex communication in a simple-enough interface composed of an intuitive set of operations, which is reflected in expressive method names.
 
 
+\subsection{Subclassing, Instantiation, Function Literals}
+
+Go does not have any formal notion of constructors as special methods. Only conventionally, a type \lstinline|T| would have an associated method \lstinline|NewT| which would return a pointer to an allocated and initialized instance of \lstinline|T|. This is much like object-oriented programming in languages with no specific support for this paradigm (for example C). I can imagine that this becomes cumbersome when combined with the paradigm of modelling subclassing by including an instance of the superclass as a member of the data structure of the subclass: the quasi-constructor of the superclass must be explicitly called, but it is not a compile-time error if it is not called.
+
+In the case of this project, this did not cause much trouble. In fact, because all state specific to different operators could be part of their goroutine stack greatly reduced the number of data structures involved and hence the need for their allocation and initialization. Furthermore, I realized that only two generic data structures can be used to represent any operator: one for source operators that take no input, and one for filter operators that take inputs. This is facilitated by the ability for functions to act as objects, and the support for variadic functions that take any number of arguments. Thus, the two data structures contain function objects of appropriates types which define specific operators. The SourceOp struct represents a source operator and contains a function object of type SourceFunc that only takes one Writer parameter for an output stream, and the FilterOp struct contains a function object of type FilterFunc that takes one Writer for an output and any number of Readers for input streams, and a slice of Operator objects representing upstream operators.
+
+\begin{lstlisting}
+type SourceFunc func ( Writer )
+
+type SourceOp struct {
+  work SourceFunc
+}
+
+type FilterFunc func ( Writer, ...Reader )
+
+type FilterOp struct {
+  work FilterFunc
+  sources [] Operator
+}
+\end{lstlisting}
+
+There is one constructor method for each of the structs. There is a number of concrete operators implemented simply as wrapper functions that internally create a function literal (in some language known as "lambda function") to define their specific processing and pass it to the Source or Filter constructor:
+
+\begin{lstlisting}
+func Source ( work SourceFunc ) Operator {
+  return & SourceOp { work }
+}
+
+func Filter ( work FilterFunc, sources... Operator ) Operator {
+  return & FilterOp { work, sources }
+}
+\end{lstlisting}
+
+
+\subsection{Goroutines}
+
+There is a good reason for the distinction between the operator as the stream processing definition (a kind of template), and actual streams of values as instances of this definition: for example, one very useful meta-operator would provide repetition of a finite stream production process of another operator. It is thus necessary for the user to be able to provide a single time the generator of the stream to be repeated, and for the repeater to instantiate the stream multiple times. This is why the operator constructors only create data structures that represent a composition of operators while the Stream method of the Operator interface is intended to instantiate the stream production process of an operator. Each stream instantiation of an operator in turn instantiates streams of upstream operators.
+
+The stream instantiation is represented by the instantiation of a goroutine which operates on Reader interfaces to consume input, processes the input and operates on a Writer interface to produce output. The implementations of the Stream method for SourceOp do and FilterOp do little more than instantiating a goroutine which in turn calls their concrete processing function. In addition, FilterOp obtains input streams by calling Stream on upstream operators, and both SourceOp and FilterOp create an instance of Stream to return as their output stream. These streams are passed as Writer and Reader interfaces to the concrete processing functions. Moreover, both FilterOp and SourceOp goroutines call Close on all input and output streams after the processing functions end.
+
+Using a well-defined interface for cooperation between stream producers and consumers, goroutine management appeared to be a no-brainer and emerged very naturally and intuitively from the interface. I would conclude that Go's facilities for concurrent programming foster good code design and allow intuition about the operation of concurrent programs that helps writing error-free code.
 
 \section{Go Runtime Evaluation}
 \label{sec:runtime}
