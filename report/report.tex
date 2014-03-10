@@ -168,7 +168,7 @@ type FilterOp struct {
 }
 \end{lstlisting}
 
-There is one constructor method for each of the structs. There is a number of concrete operators implemented simply as wrapper functions that internally create a function literal (in some language known as "lambda function") to define their specific processing and pass it to the Source or Filter constructor:
+There is one constructor method for each of the structs. There is a number of concrete operators implemented simply as wrapper functions that internally create a function literal (in some languages known as "lambda function") to define their specific processing and pass it to the Source or Filter constructor:
 
 \begin{lstlisting}
 func Source ( work SourceFunc ) Operator {
@@ -185,7 +185,7 @@ func Filter ( work FilterFunc, sources... Operator ) Operator {
 
 There is a good reason for the distinction between the operator as the stream processing definition (a kind of template), and actual streams of values as instances of this definition: for example, one very useful meta-operator would provide repetition of a finite stream production process of another operator. It is thus necessary for the user to be able to provide a single time the generator of the stream to be repeated, and for the repeater to instantiate the stream multiple times. This is why the operator constructors only create data structures that represent a composition of operators while the Stream method of the Operator interface is intended to instantiate the stream production process of an operator. Each stream instantiation of an operator in turn instantiates streams of upstream operators.
 
-The stream instantiation is represented by the instantiation of a goroutine which operates on Reader interfaces to consume input, processes the input and operates on a Writer interface to produce output. The implementations of the Stream method for SourceOp do and FilterOp do little more than instantiating a goroutine which in turn calls their concrete processing function. In addition, FilterOp obtains input streams by calling Stream() on upstream operators, and both SourceOp and FilterOp create an instance of the Stream struct to return as their output stream. These streams are passed as Writer and Reader interfaces to the concrete processing functions. Moreover, both FilterOp and SourceOp goroutines call Close on all input and output streams after the processing functions end.
+The stream instantiation is represented by the instantiation of a goroutine which operates on Reader interfaces to consume input, processes the input and operates on a Writer interface to produce output. The implementations of the Stream method for SourceOp and FilterOp do little more than instantiating a goroutine which in turn calls their concrete processing function. In addition, FilterOp obtains input streams by calling Stream() on upstream operators, and both SourceOp and FilterOp create an instance of the Stream struct to return as their output stream. These streams are passed as Writer and Reader interfaces to the concrete processing functions. Moreover, both FilterOp and SourceOp goroutines call Close on all input and output streams after the processing functions end.
 
 \subsection{Conclusions}
 
