@@ -30,6 +30,8 @@ for evaluation of Go. Main project goals are defined, challenges faced by any
 implementation are described, and an overview of the solutions in Go is
 provided.
 
+Code is available at: \textbf{https://github.com/jleben/go-stream}
+
 \item[\ref{sec:language}: Go Language Evaluation] The language is evaluated
 based on the details of implementation of the above-defined project. Comparison
 is drawn to other languages.
@@ -64,7 +66,7 @@ ideally ensure the best possible execution of any given set of goroutines.
 
 Channels are facilities for orderly and deterministic communication of otherwise
 independently running goroutines. In the essence, they correspond to channels as
-described by Hoare in Communicating Sequential Processes (CSP) \ref{bib:csp}. A
+described by Hoare in Communicating Sequential Processes (CSP). A
 channel allows a goroutine to send information to another goroutine. It also
 allows for goroutine synchronization: the sending goroutine will wait until the
 sent information is received, and the receiving one will wait until the expected
@@ -104,7 +106,7 @@ evaluation of a composition of primitive operators, some of which are simple
 data sources and others are filters that map input data to output data. For this
 reason most computer software for algorithmic music composition follows the
 coarse-grained dataflow programming paradigm and shares many aspects with the
-stream processing paradigm as defined in \ref{bib:streams}. Different voices are
+stream processing paradigm as defined in. Different voices are
 the result of a concurrent combination of individual voice streams with
 potential interdependencies: an operator contributing to the final output of one
 stream may require as input information produced by an operator contributing to
@@ -132,7 +134,7 @@ interrupted and other operators downstream get executed using the output
 produced upstream. All the required operator state can thus be represented by
 the data
 variables local to the operator code. This is the approach taken by the
-SuperCollider framework \ref{bib:sc} in its system of "patterns and streams".
+SuperCollider framework in its system of "patterns and streams".
 
 It then becomes of crucial importance the way that the execution of operators is
 interleaved and how data is passed between these executions. In SuperCollider,
@@ -173,7 +175,7 @@ SuperCollider framework is well divided into the algorithmic music composition
 part (the SuperCollider language) which is substituted by this project, and the
 sound synthesis part (the audio server) which is reused by this project.
 Communication with the audio server for sound synthesis control is done using
-the Open Sound Control (OSC) format \ref{bib:osc} over a UDP/IP connection.
+the Open Sound Control (OSC) format over a UDP/IP connection.
 Hence, my solution includes the translation of abstract musical events into OSC
 messages and sending them to the SuperCollider synthesis server. An external Go
 package for OSC message generation was used for this purpose.
@@ -192,6 +194,7 @@ events targetted for SuperCollider. Translation of such events into OSC format
 and sending them to the SuperCollider sound synthesis server.
 \end{description}
 
+Code is available at: \textbf{https://github.com/jleben/go-stream}
 
 \section{Go Language Evaluation}
 \label{sec:language}
@@ -433,5 +436,83 @@ error-free code.
 
 \section{Go Runtime Evaluation}
 \label{sec:runtime}
+
+In a real-time musical application, event latency is of highest importance. In
+our particular project, it can be measured as the time between the moment when
+an event should occur according to its assigned logical time and the moment when
+it actually occurs.
+
+The reason why these times may not be equal is because a process that generates
+events may get to execute the event-generating code later then the time at which
+it was scheduled to do so. Operating systems usually allow processes to be
+paused and specify a time at which to continue executing, but a guarantee is
+only provided that they will continue no sooner than the specified time - there
+is no guarantee about how much later that will happen. There are operating
+systems and programming languages that do provide these guarantees, but that is
+not the case with Go and the general-purpose system that I was testing it on.
+Although, I did test for latency on a version of the Linux kernel configured for
+low-latency applications, there are still no strong guarantees. Some properties
+of Go also diminish my belief that \emph{any} code could be considered to have a
+bounded execution time, especially garbage collection and the lack of a clear
+specification as to when dynamic memory allocation occurs. Nevertheless, it may
+turn out in practice that the experienced variability in latency is acceptable.
+
+\subsection{Time Measurement Resolution}
+
+Firstly, I was concerned with the precision of the time measurement facilities
+provided by the standard Go package library. I tested these facilities by
+executing \lstinline|time.Now()| a large number of times (10000), doing nothing
+else in between other then storing the measured times into a pre-allocated array
+and - after all measurements were done - computing the difference between these
+times. Precision can be defined as the minimum non-zero difference. The maximum
+difference is not meaningful because the process could be suspended by the OS
+for any amount of time between two measurements. The zero difference is also not
+meaningful because it could indicate that the underlying system provides lesser
+time resolution than the frequency of measurements. The minimum difference I
+observed across several runs of the entire procedure was 27 nanoseconds. This is
+quite good for the purpose of the following evaluations.
+
+\subsection{Best-case Scheduler Latency}
+
+Secondly, I put my musical scheduler to test. I created a task that would
+repeatedly schedule itself with a period of 30 milliseconds, which is close to a
+typical upper bound of the frequency of musical events. Whenever the scheduled
+task would wake up, it would measure current time using \lstinline|time.Now()|
+and then compute the difference between this and its logical scheduled time -
+this may be considered the scheduler's best-case latency. The latency-measuring
+task was performed 200 times in succession, 30 initial measurements were
+discared as a warm-up period, and then the minimum and maximum of the rest was
+computed. The entire procedure was repeated several times and the minimum
+obtained latency was 67.701 microseconds and the maximum 242.788 microseconds.
+The maximum latency appears somewhat worrying because an attentive listener can
+discriminate the time between multiple events down to a couple milliseconds. If
+these latencies were to accumulate when a number of events were scheduled at the
+same logical time the total time between the first and the last of these events
+could reach dangerous amounts.
+
+\subsection{Stream Processing Latency}
+
+Next, I created a composition of stream operators that could represent
+a typical generation of a stream of values for a musical parameter, and
+performed the same scheduling latency measurements as above, only this time the
+scheduled task would first obtain the next unit of data from the stream befaure
+measuring time. The minimum latency was 71.667 microseconds and the maximum
+198.826 microseconds.
+
+To see how the system would scale up, the same procedure was performed with 10
+equal streams all processed in parallel - a unit of data was obtained from each
+of the streams at every scheduling of a task. The minimum latency was 74.059
+microseconds and the maximum 212.135 microseconds.
+
+\subsection{Conclusions}
+
+I can conclude that stream processing does not increase latency in any
+significant way in comparison to best-case scheduling latency, even though it
+involves coordinated execution of a number of communicating goroutines. The Go
+runtime appears to be quite efficient in scheduling goroutines, and the
+time-characteristics of its operation do not seem to be overly variable for the
+purpose of musical event generation. It is worth noting that the latencies were
+no worse when I tried to run a number of other processes on the same machine
+concurrently in order to stress the system.
 
 \end {document}
