@@ -15,17 +15,30 @@
 
 \section{Introduction}
 
-The goal of this assignment was to get familiar and experiment with the Go programming language, and evaluate its advantages and drawbacks. I thought the best way to achieve this was to try and develop code that can serve a real purpose and actually be put to good use beyond the scope of this assignment.
+The goal of this assignment was to get familiar and experiment with the Go
+programming language, and evaluate its advantages and drawbacks. I thought the
+best way to achieve this was to try and develop code that can serve a real
+purpose and actually be put to good use beyond the scope of this assignment.
 
 This report includes the following sections:
 
 \begin{description}
 
-\item[\ref{sec:project}: Project Description] A programming project implemented in Go is described. Reasons are given why this particular project is relevant for evaluation of Go. Main project goals are defined, challenges faced by any implementation are described, and an overview of the solutions in Go is provided.
+\item[\ref{sec:project}: Project Description] A programming project implemented
+in Go is described. Reasons are given why this particular project is relevant
+for evaluation of Go. Main project goals are defined, challenges faced by any
+implementation are described, and an overview of the solutions in Go is
+provided.
 
-\item[\ref{sec:language}: Go Language Evaluation] The language is evaluated based on the details of implementation of the above-defined project. Comparison is drawn to other languages.
+\item[\ref{sec:language}: Go Language Evaluation] The language is evaluated
+based on the details of implementation of the above-defined project. Comparison
+is drawn to other languages.
 
-\item[\ref{sec:runtime}: Go Runtime Evaluation] The code is put into use and performance is measured in various ways. Reflection is provided on how the performance characteristics are a necessary consequence of the essential language design, what could potentially be done differently and what tradeoffs between performance qualities and qualities of the language are at play.
+\item[\ref{sec:runtime}: Go Runtime Evaluation] The code is put into use and
+performance is measured in various ways. Reflection is provided on how the
+performance characteristics are a necessary consequence of the essential
+language design, what could potentially be done differently and what tradeoffs
+between performance qualities and qualities of the language are at play.
 
 \end{description}
 
@@ -34,44 +47,149 @@ This report includes the following sections:
 
 \subsection{Overview of Go and Motivation}
 
-In support of the choice of particular programming project, let me first provide a quick overview of the most prominent characteristics of the Go language. The most distinguishing features of Go are arguably "goroutines" and "channels".
+In support of the choice of particular programming project, let me first provide
+a quick overview of the most prominent characteristics of the Go language. The
+most distinguishing features of Go are arguably "goroutines" and "channels".
 
-Goroutines are an embodiment of the concept of co-routines found in other languages: each goroutine is a chunk of sequential code, but different goroutines can run concurrently. They are first-class concepts in the Go language and are thus distinguished from the operating system concept of threads. Goroutines may indeed run in parallel on different threads, or they may run on a single thread in an interleaved fashion where only one at a time ever progresses but they take turns in doing so. The assumption is that the way goroutines are actually executed is irrelevant for the task of program implementation, and the Go runtime together with the operating system should ideally ensure the best possible execution of any given set of goroutines.
+Goroutines are an embodiment of the concept of co-routines found in other
+languages: each goroutine is a chunk of sequential code, but different
+goroutines can run concurrently. They are first-class concepts in the Go
+language and are thus distinguished from the operating system concept of
+threads. Goroutines may indeed run in parallel on different threads, or they may
+run on a single thread in an interleaved fashion where only one at a time ever
+progresses but they take turns in doing so. The assumption is that the way
+goroutines are actually executed is irrelevant for the task of program
+implementation, and the Go runtime together with the operating system should
+ideally ensure the best possible execution of any given set of goroutines.
 
-Channels are facilities for orderly and deterministic communication of otherwise independently running goroutines. In the essence, they correspond to channels as described by Hoare in Communicating Sequential Processes (CSP) \ref{bib:csp}. A channel allows a goroutine to send information to another goroutine. It also allows for goroutine synchronization: the sending goroutine will wait until the sent information is received, and the receiving one will wait until the expected information is sent. Moreover, Go's channels feature several extensions of the CSP channels. They can optionally be buffered with a limited buffer size, so sending and receiving will only block if the channel is full or empty, respectively. Unlike channels in CSP which are defined implicitly by addressing send and receive operations to named processes, channels in Go are themselves named objects that can be passed as information just like any other object. Hence it is possible to have channels of channels, which allows for complex communication patterns.
+Channels are facilities for orderly and deterministic communication of otherwise
+independently running goroutines. In the essence, they correspond to channels as
+described by Hoare in Communicating Sequential Processes (CSP) \ref{bib:csp}. A
+channel allows a goroutine to send information to another goroutine. It also
+allows for goroutine synchronization: the sending goroutine will wait until the
+sent information is received, and the receiving one will wait until the expected
+information is sent. Moreover, Go's channels feature several extensions of the
+CSP channels. They can optionally be buffered with a limited buffer size, so
+sending and receiving will only block if the channel is full or empty,
+respectively. Unlike channels in CSP which are defined implicitly by addressing
+send and receive operations to named processes, channels in Go are themselves
+named objects that can be passed as information just like any other object.
+Hence it is possible to have channels of channels, which allows for complex
+communication patterns.
 
-However, channels do allow for some degree of indeterminism. Specifically, there is a \lstinline|select| statement which groups several send and receive operations, waits until any of them can complete, and proceeds to execute one such operation. If more than one operation could complete, one is randomly chosen. Moreover, multiple goroutines can write to and read from the same channel concurrently. In that case, individual send and receive operations are paired, but it is undefined which send will be paired with which receive.
+However, channels do allow for some degree of indeterminism. Specifically, there
+is a \lstinline|select| statement which groups several send and receive
+operations, waits until any of them can complete, and proceeds to execute one
+such operation. If more than one operation could complete, one is randomly
+chosen. Moreover, multiple goroutines can write to and read from the same
+channel concurrently. In that case, individual send and receive operations are
+paired, but it is undefined which send will be paired with which receive.
 
 \subsection{Music and Streams}
 
-One area of application to which communicating concurrent processes fit quite naturally is music. We usually think of music as composed of individual cooperating voices: each voice belongs to a distinct sound source with specific characteristics, a sound source is producing sounds sequentially in time, while a collection of such sources cooperate in a well organized fashion. It is this organization that results in a pleasing perceptual effect which we call \emph{music}. Hence, a definition of a musical piece is a definition of how sounds belonging to a voice follow one another in time, as well as how sounds of different voices are combined in time. Musical meaning is essentially dual: sequential and concurrent.
+One area of application to which communicating concurrent processes fit quite
+naturally is music. We usually think of music as composed of individual
+cooperating voices: each voice belongs to a distinct sound source with specific
+characteristics, a sound source is producing sounds sequentially in time, while
+a collection of such sources cooperate in a well organized fashion. It is this
+organization that results in a pleasing perceptual effect which we call
+\emph{music}. Hence, a definition of a musical piece is a definition of how
+sounds belonging to a voice follow one another in time, as well as how sounds of
+different voices are combined in time. Musical meaning is essentially dual:
+sequential and concurrent.
 
-To enable algorithmic composition of music, we can think of an individual musical voice as a continous stream of information produced by repeated evaluation of a composition of primitive operators, some of which are simple data sources and others are filters that map input data to output data. For this reason most computer software for algorithmic music composition follows the coarse-grained dataflow programming paradigm and shares many aspects with the stream processing paradigm as defined in \ref{bib:streams}. Different voices are the result of a concurrent combination of individual voice streams with potential interdependencies: an operator contributing to the final output of one stream may require as input information produced by an operator contributing to the output of another stream. Moreover, the musical output of individual voices may feature multiple aspects controlled by the program, and control of individual aspects itself depends on a collection of interdependent concurrent information streams. The high-level description of a program for music generation may thus be viewed as a directed graph where nodes correspond to operators and edges correspond to streams. Finally, outputs of different groups of nodes constitute information that controls individual voices of music.
+To enable algorithmic composition of music, we can think of an individual
+musical voice as a continous stream of information produced by repeated
+evaluation of a composition of primitive operators, some of which are simple
+data sources and others are filters that map input data to output data. For this
+reason most computer software for algorithmic music composition follows the
+coarse-grained dataflow programming paradigm and shares many aspects with the
+stream processing paradigm as defined in \ref{bib:streams}. Different voices are
+the result of a concurrent combination of individual voice streams with
+potential interdependencies: an operator contributing to the final output of one
+stream may require as input information produced by an operator contributing to
+the output of another stream. Moreover, the musical output of individual voices
+may feature multiple aspects controlled by the program, and control of
+individual aspects itself depends on a collection of interdependent concurrent
+information streams.
+The high-level description of a program for music generation may thus be viewed
+as a directed graph where nodes correspond to operators and edges correspond to
+streams. Finally, outputs of different groups of nodes constitute information
+that controls individual voices of music.
 
-If we turn out attention to the sequential aspect of the musical meaning, we may realize that the current output of individual stream operators will often depend not only on their current input, but also their previous input and output. There is thus a necessity to carry over a state from one to another execution of operatators. In some software, this is facilitated with a data structure corresponding to an operator and sharing its lifetime, which the operator can use to store and retrive data across executions (which naturally maps to the identity of an operator with an object in object-oriented languages). However, programming becomes much simpler if each operator is represented with a co-routine: each execution of an operator corresponds to executing only a part of its code that produces a single unit of output, after which the operator is interrupted and other operators downstream get executed using the output produced upstream. All the required operator state can thus be represented by the data variables local to the operator code. This is the approach taken by the SuperCollider framework \ref{bib:sc} in its system of "patterns and streams".
+If we turn out attention to the sequential aspect of the musical meaning, we may
+realize that the current output of individual stream operators will often depend
+not only on their current input, but also their previous input and output. There
+is thus a necessity to carry over a state from one to another execution of
+operatators. In some software, this is facilitated with a data structure
+corresponding to an operator and sharing its lifetime, which the operator can
+use to store and retrive data across executions (which naturally maps to the
+identity of an operator with an object in object-oriented languages). However,
+programming becomes much simpler if each operator is represented with a
+co-routine: each execution of an operator corresponds to executing only a part
+of its code that produces a single unit of output, after which the operator is
+interrupted and other operators downstream get executed using the output
+produced upstream. All the required operator state can thus be represented by
+the data
+variables local to the operator code. This is the approach taken by the
+SuperCollider framework \ref{bib:sc} in its system of "patterns and streams".
 
-It then becomes of crucial importance the way that the execution of operators is interleaved and how data is passed between these executions. In SuperCollider, co-routine execution and communication is structured in a hierarchical way. A parent routine explicitly requests execution of a child routine and at the same time can pass information to it. The execution of the parent is blocked until the child explicitly yields execution, at which time it can also pass information back to the parent. The execution of the parent then continues with the availability of the information provided by the child. In Go language, communication and execution control are more decoupled. Assuming a restriction of all communcation to passing data over channels, despite the send and receive operations being coordinated, they do not essentially dictate an immediate transfer of control to the other end of communication.
+It then becomes of crucial importance the way that the execution of operators is
+interleaved and how data is passed between these executions. In SuperCollider,
+co-routine execution and communication is structured in a hierarchical way. A
+parent routine explicitly requests execution of a child routine and at the same
+time can pass information to it. The execution of the parent is blocked until
+the child explicitly yields execution, at which time it can also pass
+information back to the parent. The execution of the parent then continues with
+the availability of the information provided by the child. In Go language,
+communication and execution control are more decoupled. Assuming a restriction
+of all communcation to passing data over channels, despite the send and receive
+operations being coordinated, they do not essentially dictate an immediate
+transfer of control to the other end of communication.
 
-The challenge approached by this project was to use the Go language to replicate the SuperCollider's high-level concept of stream operators as co-routines. Operators are thus represented by goroutines, and all communication between them occurs over channels.
+The challenge approached by this project was to use the Go language to replicate
+the SuperCollider's high-level concept of stream operators as co-routines.
+Operators are thus represented by goroutines, and all communication between them
+occurs over channels.
 
 \subsection{Overview of Implementation}
 
-The goal of the project was to implement a framework for algorithmic music composition where concurrent streams of events describing musical voices are generated by a composition of primitive stream operators (sources and filters). The implementation was guided by two aspects of evaluation of the Go language and runtime:
+The goal of the project was to implement a framework for algorithmic music
+composition where concurrent streams of events describing musical voices are
+generated by a composition of primitive stream operators (sources and filters).
+The implementation was guided by two aspects of evaluation of the Go language
+and runtime:
 
 \begin{itemize}
 \item How elegant a programming interface for music composition can be devised?
-\item How efficient would the framework be in real-time execution for serious music performance?
+\item How efficient would the framework be in real-time execution for serious
+music performance?
 \end{itemize}
 
-To affirm the solution's usefulness, the final goal was to produce the actual sound output in real time. For this reason, a basic interface with the SuperCollider sound synthesis functionality was added. Fortunately, the SuperCollider framework is well divided into the algorithmic music composition part (the SuperCollider language) which is substituted by this project, and the sound synthesis part (the audio server) which is reused by this project. Communication with the audio server for sound synthesis control is done using the Open Sound Control (OSC) format \ref{bib:osc} over a UDP/IP connection. Hence, my solution includes the translation of abstract musical events into OSC messages and sending them to the SuperCollider synthesis server. An external Go package for OSC message generation was used for this purpose.
+To affirm the solution's usefulness, the final goal was to produce the actual
+sound output in real time. For this reason, a basic interface with the
+SuperCollider sound synthesis functionality was added. Fortunately, the
+SuperCollider framework is well divided into the algorithmic music composition
+part (the SuperCollider language) which is substituted by this project, and the
+sound synthesis part (the audio server) which is reused by this project.
+Communication with the audio server for sound synthesis control is done using
+the Open Sound Control (OSC) format \ref{bib:osc} over a UDP/IP connection.
+Hence, my solution includes the translation of abstract musical events into OSC
+messages and sending them to the SuperCollider synthesis server. An external Go
+package for OSC message generation was used for this purpose.
 
-The implementation is split into several Go packages, some of which are more generally useful utilities:
+The implementation is split into several Go packages, some of which are more
+generally useful utilities:
 
 \begin{description}
 \item['stream' package:] Stream operator definition, composition and execution.
-\item['schedule' package:] Scheduling system that maps events in logical musical time into real time.
-\item['priority\_queue' package:] Priority queue data structure used by several components.
-\item['supercollider' package:] Translation of abstract streams into streams of events targetted for SuperCollider. Translation of such events into OSC format and sending them to the SuperCollider sound synthesis server.
+\item['schedule' package:] Scheduling system that maps events in logical musical
+time into real time.
+\item['priority\_queue' package:] Priority queue data structure used by several
+components.
+\item['supercollider' package:] Translation of abstract streams into streams of
+events targetted for SuperCollider. Translation of such events into OSC format
+and sending them to the SuperCollider sound synthesis server.
 \end{description}
 
 
@@ -80,11 +198,34 @@ The implementation is split into several Go packages, some of which are more gen
 
 \subsection {Interfaces, Generics and Polymorphism}
 
-The stream processing project is a kind of project with a need for a simple and minimalistic common programming interface to define common protocol of cooperation among a number of elements (stream operators), where the concrete and specific operation of different elements should be completely abstracted way. There are two fundamental approaches to this task: polymorphism and generic programming.
+The stream processing project is a kind of project with a need for a simple and
+minimalistic common programming interface to define common protocol of
+cooperation among a number of elements (stream operators), where the concrete
+and specific operation of different elements should be completely abstracted
+way. There are two fundamental approaches to this task: polymorphism and generic
+programming.
 
-Go lacks support for generic programming but instead offers a lot of flexibility in polymorphism. This is counterbalanced by the necessary loss of code clarity. The flexibility comes in several forms. Firstly, there is support for object-oriented programming, but methods for a type do not make part of the type's definition - they are defined separately. This means that methods can be added to any type by its user, without modifying the type definition as provided by the author. Secondly, there is the concept of interfaces, which are sets of all types for which particular methods are implemented. However, the fact that a type implements an interface is also not explicitly specified at the type's definition, but implicitly by having required methods implemented. Furthermore, interfaces can themselves be types of variables, method arguments and method return types; this also holds for the empty interface, which is satisfied by any type! In consequence Go's polymorphism is just as expressive as for example generic (template) programming in C++ or Java. On the other hand, it is rather hard to deduce which interfaces a particular type implements based only on looking at the code that mentions the type. The code author's intention with respect to interface implementation is unclear.
+Go lacks support for generic programming but instead offers a lot of flexibility
+in polymorphism. This is counterbalanced by the necessary loss of code clarity.
+The flexibility comes in several forms. Firstly, there is support for
+object-oriented programming, but methods for a type do not make part of the
+type's definition - they are defined separately. This means that methods can be
+added to any type by its user, without modifying the type definition as provided
+by the author. Secondly, there is the concept of interfaces, which are sets of
+all types for which particular methods are implemented. However, the fact that a
+type implements an interface is also not explicitly specified at the type's
+definition, but implicitly by having required methods implemented. Furthermore,
+interfaces can themselves be types of variables, method arguments and method
+return types; this also holds for the empty interface, which is satisfied by any
+type! In consequence Go's polymorphism is just as expressive as for example
+generic (template) programming in C++ or Java. On the other hand, it is rather
+hard to deduce which interfaces a particular type implements based only on
+looking at the code that mentions the type. The code author's intention with
+respect to interface implementation is unclear.
 
-In practice, I found Go's interfaces a very useful means of structuring code. The complete interface for definition, cooperation and usage of stream processing framework is expressed concisely in the following code:
+In practice, I found Go's interfaces a very useful means of structuring code.
+The complete interface for definition, cooperation and usage of stream
+processing framework is expressed concisely in the following code:
 
 \begin{lstlisting}
 type Item interface {}
@@ -112,20 +253,64 @@ type Operator interface {
 }
 \end{lstlisting}
 
-I will only provide a basic explanation of the interface here and details will be explained later. The Item is the smallest discrete unit of information transferred in any stream. It is an empty interface, so any other type can be used in its place. There is a set of constants defining the result status of stream production and consumption operations. The Writer represents the producing end of a stream. Its Push method sends the Item argument downstream. The Reader represents the consuming end of the stream. Its Pull method removes and returns an Item from the stream. The Close methods notify the other end that no writing or reading will be performed anymore by this end, and this is reflected in the Status returned by the Push or Pull methods on the other end. The Operator represents a concrete definition of stream processing. It's duty is to provide a method Stream which instantiates a concrete stream of values and returns the Reader interface to it. The \emph{output} of upstream operators is thus accesed by downstream operators via the Operator interface. However, it is left to concrete implementations of the Operator to define whether they require or accept any upstream Operators and how they are to be provided.
+I will only provide a basic explanation of the interface here and details will
+be explained later. The Item is the smallest discrete unit of information
+transferred in any stream. It is an empty interface, so any other type can be
+used in its place. There is a set of constants defining the result status of
+stream production and consumption operations. The Writer represents the
+producing end of a stream. Its Push method sends the Item argument downstream.
+The Reader represents the consuming end of the stream. Its Pull method removes
+and returns an Item from the stream. The Close methods notify the other end that
+no writing or reading will be performed anymore by this end, and this is
+reflected in the Status returned by the Push or Pull methods on the other end.
+The Operator represents a concrete definition of stream processing. It's duty is
+to provide a method Stream which instantiates a concrete stream of values and
+returns the Reader interface to it. The \emph{output} of upstream operators is
+thus accesed
+by downstream operators via the Operator interface. However, it is left to
+concrete implementations of the Operator to define whether they require or
+accept any upstream Operators and how they are to be provided.
 
 
 \subsection{Channels}
 
-One of the main project goals was to allow the framework user to define operators as goroutines. The Stream method of the Operator should thus run a goroutine which should then be able to provide stream data Item by Item via the Reader interface. The obvious way to exchange data between goroutines while they are running are Go's channels.
+One of the main project goals was to allow the framework user to define
+operators as goroutines. The Stream method of the Operator should thus run a
+goroutine which should then be able to provide stream data Item by Item via the
+Reader interface. The obvious way to exchange data between goroutines while they
+are running are Go's channels.
 
-Since channels are primitive types in Go, there is also a special, elegant and compact syntax for sending and receiving data over channels (the \lstinline|<-| operator). Hence, in an initial attempt, I intended to expose channels through the interface all the way up to the user of the framework. There was no Writer and Reader interfaces, but the Stream methods of the Operator interface returned a channel type, used for the upstream operator to send data downstream. However, it quickly turned out that more complex communication was required, involving at least two channels per stream. Hence, the communcation was wrapped by the Reader and Writer interfaces.
+Since channels are primitive types in Go, there is also a special, elegant and
+compact syntax for sending and receiving data over channels (the \lstinline|<-|
+operator). Hence, in an initial attempt, I intended to expose channels through
+the interface all the way up to the user of the framework. There was no Writer
+and Reader interfaces, but the Stream methods of the Operator interface returned
+a channel type, used for the upstream operator to send data downstream. However,
+it quickly turned out that more complex communication was required, involving at
+least two channels per stream. Hence, the communcation was wrapped by the Reader
+and Writer interfaces.
 
-The need for more complex communication arises from the fact that an operator's goroutine will only end when all of its data has been produced and sent downstream, but the downstream operator may decide to stop consuming upstream data before it is all consumed. If there was no way to communicate this decision upstream, the upstream goroutine would never end and its resources never released; Go does not provide any external means to stop a goroutine.
+The need for more complex communication arises from the fact that an operator's
+goroutine will only end when all of its data has been produced and sent
+downstream, but the downstream operator may decide to stop consuming upstream
+data before it is all consumed. If there was no way to communicate this decision
+upstream, the upstream goroutine would never end and its resources never
+released; Go does not provide any external means to stop a goroutine.
 
-Each stream is thus represented by two channels: one for downstream data transmision (operator output to input) and another channel to signal end of stream consumption upstream. The Writer's Push operation thus uses the \lstinline|select| statement to concurrently attempt sending data on one channel as well as receiving the end-of-consumption signal on the other channel, whichever one succeeds. The Reader's Close() operation sends the end-of-consumption signal upstream. In the other direction, the Reader's Pull() method simply receives from the data channel, which will be interrupted when the channel is closed by the upstream Writer's Close() method.
+Each stream is thus represented by two channels: one for downstream data
+transmision (operator output to input) and another channel to signal end of
+stream consumption upstream. The Writer's Push operation thus uses the
+\lstinline|select| statement to concurrently attempt sending data on one channel
+as well as receiving the end-of-consumption signal on the other channel,
+whichever one succeeds. The Reader's Close() operation sends the
+end-of-consumption signal upstream. In the other direction, the Reader's Pull()
+method simply receives from the data channel, which will be interrupted when the
+channel is closed by the upstream Writer's Close() method.
 
-A stream was thus implemented by the Stream data structure in the following code. Note that the same Stream type was aliased as StreamWriter and StreamReader, which were used as receivers in implementation of methods for the Writer and Reader interfaces, respectively:
+A stream was thus implemented by the Stream data structure in the following
+code. Note that the same Stream type was aliased as StreamWriter and
+StreamReader, which were used as receivers in implementation of methods for the
+Writer and Reader interfaces, respectively:
 
 \begin{lstlisting}
 type Stream struct {
@@ -144,14 +329,40 @@ func (s *StreamReader) Pull () (Item, Status) { ... }
 func (s *StreamReader) Close () { ... }
 \end{lstlisting}
 
-In conclusion, to provide a simple interface that ensures correct operation, the ability to use the channel send/receive operator (\lstinline|<-|) at the user level was lost. Nevertheless, Go allowed for succesful abstraction of the more complex communication in a simple-enough interface composed of an intuitive set of operations, which is reflected in expressive method names.
+In conclusion, to provide a simple interface that ensures correct operation, the
+ability to use the channel send/receive operator (\lstinline|<-|) at the user
+level was lost. Nevertheless, Go allowed for succesful abstraction of the more
+complex communication in a simple-enough interface composed of an intuitive set
+of operations, which is reflected in expressive method names.
 
 
 \subsection{Subclassing, Instantiation, Function Literals}
 
-Go does not have any formal notion of constructors as special methods. Only conventionally, a type \lstinline|T| would have an associated method \lstinline|NewT| which would return a pointer to an allocated and initialized instance of \lstinline|T|. This is much like object-oriented programming in languages with no specific support for this paradigm (for example C). I can imagine that this becomes cumbersome when combined with the paradigm of modelling subclassing by including an instance of the superclass as a member of the data structure of the subclass: the quasi-constructor of the superclass must be explicitly called, but it is not a compile-time error if it is not called.
+Go does not have any formal notion of constructors as special methods. Only
+conventionally, a type \lstinline|T| would have an associated method
+\lstinline|NewT| which would return a pointer to an allocated and initialized
+instance of \lstinline|T|. This is much like object-oriented programming in
+languages with no specific support for this paradigm (for example C). I can
+imagine that this becomes cumbersome when combined with the paradigm of
+modelling subclassing by including an instance of the superclass as a member of
+the data structure of the subclass: the quasi-constructor of the superclass must
+be explicitly called, but it is not a compile-time error if it is not called.
 
-In the case of this project, this did not cause much trouble. In fact, because all state specific to different operators could be part of their goroutine stack greatly reduced the number of data structures involved and hence the need for their allocation and initialization. Furthermore, I realized that only two generic data structures can be used to represent any operator: one for source operators that take no input, and one for filter operators that take inputs. This is facilitated by the ability for functions to act as objects, and the support for variadic functions that take any number of arguments. Thus, the two data structures contain function objects of appropriates types which define specific operators. The SourceOp struct represents a source operator and contains a function object of type SourceFunc that only takes one Writer parameter for an output stream, and the FilterOp struct contains a function object of type FilterFunc that takes one Writer for an output and any number of Readers for input streams, and a slice of Operator objects representing upstream operators.
+In the case of this project, this did not cause much trouble. In fact, because
+all state specific to different operators could be part of their goroutine stack
+greatly reduced the number of data structures involved and hence the need for
+their allocation and initialization. Furthermore, I realized that only two
+generic data structures can be used to represent any operator: one for source
+operators that take no input, and one for filter operators that take inputs.
+This is facilitated by the ability for functions to act as objects, and the
+support for variadic functions that take any number of arguments. Thus, the two
+data structures contain function objects of appropriates types which define
+specific operators. The SourceOp struct represents a source operator and
+contains a function object of type SourceFunc that only takes one Writer
+parameter for an output stream, and the FilterOp struct contains a function
+object of type FilterFunc that takes one Writer for an output and any number of
+Readers for input
+streams, and a slice of Operator objects representing upstream operators.
 
 \begin{lstlisting}
 type SourceFunc func ( Writer )
@@ -168,7 +379,11 @@ type FilterOp struct {
 }
 \end{lstlisting}
 
-There is one constructor method for each of the structs. There is a number of concrete operators implemented simply as wrapper functions that internally create a function literal (in some languages known as "lambda function") to define their specific processing and pass it to the Source or Filter constructor:
+There is one constructor method for each of the structs. There is a number of
+concrete operators implemented simply as wrapper functions that internally
+create a function literal (in some languages known as "lambda function") to
+define their specific processing and pass it to the Source or Filter
+constructor:
 
 \begin{lstlisting}
 func Source ( work SourceFunc ) Operator {
@@ -183,13 +398,38 @@ func Filter ( work FilterFunc, sources... Operator ) Operator {
 
 \subsection{Goroutines}
 
-There is a good reason for the distinction between the operator as the stream processing definition (a kind of template), and actual streams of values as instances of this definition: for example, one very useful meta-operator would provide repetition of a finite stream production process of another operator. It is thus necessary for the user to be able to provide a single time the generator of the stream to be repeated, and for the repeater to instantiate the stream multiple times. This is why the operator constructors only create data structures that represent a composition of operators while the Stream method of the Operator interface is intended to instantiate the stream production process of an operator. Each stream instantiation of an operator in turn instantiates streams of upstream operators.
+There is a good reason for the distinction between the operator as the stream
+processing definition (a kind of template), and actual streams of values as
+instances of this definition: for example, one very useful meta-operator would
+provide repetition of a finite stream production process of another operator. It
+is thus necessary for the user to be able to provide a single time the generator
+of the stream to be repeated, and for the repeater to instantiate the stream
+multiple times. This is why the operator constructors only create data
+structures that represent a composition of operators while the Stream method of
+the Operator interface is intended to instantiate the stream production process
+of an operator. Each stream instantiation of an operator in turn instantiates
+streams of upstream operators.
 
-The stream instantiation is represented by the instantiation of a goroutine which operates on Reader interfaces to consume input, processes the input and operates on a Writer interface to produce output. The implementations of the Stream method for SourceOp and FilterOp do little more than instantiating a goroutine which in turn calls their concrete processing function. In addition, FilterOp obtains input streams by calling Stream() on upstream operators, and both SourceOp and FilterOp create an instance of the Stream struct to return as their output stream. These streams are passed as Writer and Reader interfaces to the concrete processing functions. Moreover, both FilterOp and SourceOp goroutines call Close on all input and output streams after the processing functions end.
+The stream instantiation is represented by the instantiation of a goroutine
+which operates on Reader interfaces to consume input, processes the input and
+operates on a Writer interface to produce output. The implementations of the
+Stream method for SourceOp and FilterOp do little more than instantiating a
+goroutine which in turn calls their concrete processing function. In addition,
+FilterOp obtains input streams by calling Stream() on upstream operators, and
+both SourceOp and FilterOp create an instance of the Stream struct to return as
+their output stream. These streams are passed as Writer and Reader interfaces to
+the concrete processing functions. Moreover, both FilterOp and SourceOp
+goroutines call Close on all input and output streams after the processing
+functions end.
 
 \subsection{Conclusions}
 
-Using a well-defined interface for cooperation between stream producers and consumers, goroutine management and communication appeared to be a no-brainer and emerged very naturally and intuitively from the interface. I would conclude that Go's facilities for concurrent programming foster good code design and allow intuition about the operation of concurrent programs that helps writing error-free code.
+Using a well-defined interface for cooperation between stream producers and
+consumers, goroutine management and communication appeared to be a no-brainer
+and emerged very naturally and intuitively from the interface. I would conclude
+that Go's facilities for concurrent programming foster good code design and
+allow intuition about the operation of concurrent programs that helps writing
+error-free code.
 
 \section{Go Runtime Evaluation}
 \label{sec:runtime}
